@@ -118,16 +118,23 @@ test('09.4 【脚手架正确性】innerHTML 重建后 ovBtn 监听器恒为 1�
   assert.strictEqual(h.Game.state, h.STATE.PLAYING, 'paused 点击"继续游戏"后应继续');
 });
 
-test('09.5【P1 安全性】遮罩/按钮的点击路径不会因新增 PLAYING 分支而误暂停', () => {
+test('09.5【B轮·移动端轻点暂停】PLAYING 轻点应暂停；遮罩 click 路径在 PLAYING 不响应（overlay hidden）', () => {
   const h = H.createHarness();
   h.startPlaying();
 
-  // PLAYING 时遮罩是隐藏的；即便强行触发 click，也不应改变状态之外的东西
+  // PLAYING 时遮罩是隐藏的（点击路径不会走到 PLAYING 分支，只有键盘空格命中）
   assert.strictEqual(h.els.get('overlay').hidden, true, 'PLAYING 时遮罩必须隐藏');
 
-  // 触摸路径不受影响
+  // 移动端轻点（tap）应触发暂停（B 轮体验闭环需求）
   h.tap();
-  assert.strictEqual(h.Game.state, h.STATE.PLAYING, 'PLAYING 中轻点不应误暂停');
+  assert.strictEqual(h.Game.state, h.STATE.PAUSED, 'PLAYING 中轻点应暂停');
+  assert.strictEqual(h.els.get('overlay').hidden, false, '暂停后遮罩应显示');
+
+  // 暂停态轻点遮罩（继续游戏）-> 由 overlay click 处理
+  h.els.get('overlay').fire('click', {});
+  assert.strictEqual(h.Game.state, h.STATE.PLAYING, '暂停态轻点遮罩应继续游戏');
+
+  // 滑动仍正常入队（未受影响）
   h.swipe(0, -80);
   assert.strictEqual(h.Game.dirQueue.length, 1, '滑动应正常入队');
 });

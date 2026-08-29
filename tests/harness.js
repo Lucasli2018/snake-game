@@ -145,7 +145,9 @@ class FakeAudioContext {
 const STATIC_IDS = [
   'scoreEl', 'bestEl', 'levelEl', 'tpsEl', 'speedFill',
   'overlay', 'panel', 'soundBtn', 'wave1', 'wave2', 'slash',
-  'stage', 'game'
+  'stage', 'game',
+  'dpad', 'dbtn-up', 'dbtn-down', 'dbtn-left', 'dbtn-right',
+  'themeBtn', 'moonIcon', 'sunIcon'
 ];
 
 function makeElement(id, env) {
@@ -247,6 +249,7 @@ function createHarness(opts) {
     readyState: 'complete',
     hidden: false,
     visibilityState: 'visible',
+    documentElement: makeElement('html', env),
     _listeners: docListeners,
     addEventListener(type, fn) { (docListeners[type] = docListeners[type] || []).push(fn); },
     removeEventListener(type, fn) {

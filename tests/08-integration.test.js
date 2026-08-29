@@ -276,18 +276,21 @@ test('08.14 重开会保留最高分，但清零本局数据', () => {
   assert.strictEqual(h.Game.dirQueue.length, 0);
 });
 
-test('08.15 触摸：轻点开始、滑动转向、微小抖动不算滑动', () => {
+test('08.15 触摸：轻点开始、滑动转向、轻点暂停、微小抖动不转向', () => {
   const h = H.createHarness();
   assert.strictEqual(h.Game.state, h.STATE.READY);
 
   h.tap();                                   // 轻点开始
   assert.strictEqual(h.Game.state, h.STATE.PLAYING, '轻点应能开始游戏');
 
-  // 微小抖动（<24px）不应改变方向
-  const dirBefore = H.cellOf(h.Game.dir);
+  // 微小抖动（<24px）不应改变方向（不转向）；在 PLAYING 态会被判为轻点 -> 暂停
   h.swipe(5, 5);
   assert.strictEqual(h.Game.dirQueue.length, 0, '微小抖动不应产生方向输入');
-  assert.deepStrictEqual(H.cellOf(h.Game.dir), dirBefore);
+  assert.strictEqual(h.Game.state, h.STATE.PAUSED, 'PLAYING 中轻点（含微小抖动）应暂停');
+
+  // 暂停态轻点遮罩 -> 继续游戏
+  h.els.get('overlay').fire('click', {});
+  assert.strictEqual(h.Game.state, h.STATE.PLAYING, '暂停态轻点遮罩应继续游戏');
 
   // 明确滑动应转向
   h.swipe(0, -80);
@@ -319,21 +322,25 @@ test('08.17 【代码审查 P3】drawHead 的方向兜底是死代码（len 被 
   assert.doesNotThrow(() => h.Renderer.render(0.5));
 });
 
-test('08.18 【代码审查 P3】暂停时粒子/飘字/震屏仍在推进（表现层未随暂停冻结）', () => {
+test('08.18 【B轮·暂停特效冻结】暂停时粒子/飘字/震屏随暂停冻结（表现层定格）', () => {
   const h = H.createHarness();
   h.startPlaying();
   const head = h.Game.snake[0];
   h.Game.food = { x: head.x + h.Game.dir.x, y: head.y + h.Game.dir.y };
   pumpUntilTick(h, 1);
   assert.ok(h.Fx.particles.length > 0, '吃到食物应产生粒子');
+  assert.ok(h.Fx.time > 0, 'Fx.time 应有累计（食物呼吸动画）');
 
   h.App.pause();
+  const lenBefore = h.Fx.particles.length;
   const lifeBefore = h.Fx.particles[0].life;
+  const timeBefore = h.Fx.time;
   const snakeBefore = H.snakeOf(h.Game.snake);
   h.pumpFrames(5);
-  assert.ok(h.Fx.particles.length === 0 || h.Fx.particles[0].life < lifeBefore,
-    '暂停时粒子仍在推进（表现层没有随暂停冻结）—— 仅影响观感');
-  assert.deepStrictEqual(H.snakeOf(h.Game.snake), snakeBefore, '但蛇身必须冻结');
+  assert.strictEqual(h.Fx.particles.length, lenBefore, '暂停时粒子数不变（不被更新/清除，表现层冻结）');
+  assert.strictEqual(h.Fx.particles[0].life, lifeBefore, '暂停时粒子 life 不变（冻结）');
+  assert.strictEqual(h.Fx.time, timeBefore, '暂停时 Fx.time 不累加（食物呼吸等动画冻结）');
+  assert.deepStrictEqual(H.snakeOf(h.Game.snake), snakeBefore, '蛇身冻结');
 });
 
 test('08.19 极端舞台尺寸（比最小画布还小）不会崩', () => {

@@ -27,6 +27,35 @@
             "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
   }
 
+  /* 深色（夜间）主题：卡片变深、文字变浅，画布保持深色并略加深 */
+  :root[data-theme="dark"] {
+    --ink:        #e2e8f0;
+    --ink-soft:   #cbd5e1;
+    --ink-faint:  #94a3b8;
+    --line:       #334155;
+    --card:       #111c30;
+    --brand:      #4ade80;
+    --brand-2:    #22c55e;
+    --accent:     #38bdf8;
+    --warn:       #fbbf24;
+    --danger:     #f87171;
+    --canvas-bg:  #060c18;
+  }
+  :root[data-theme="dark"] body {
+    background:
+      radial-gradient(1200px 600px at 12% -10%, #0c2236 0%, transparent 55%),
+      radial-gradient(900px 500px at 100% 0%, #0a2a1c 0%, transparent 50%),
+      linear-gradient(165deg, #0b1220 0%, #0a0f1a 100%);
+  }
+  :root[data-theme="dark"] .icon-btn:hover { background: #1e293b; color: var(--ink); }
+  /* 深色主题下画布外框也变深，保持整体一致 */
+  :root[data-theme="dark"] .canvas-wrap {
+    background: linear-gradient(150deg, #0f1a2e, #070d18);
+    box-shadow:
+      0 18px 40px -12px rgba(0,0,0,.55),
+      0 2px 8px rgba(0,0,0,.3);
+  }
+
   html, body { height: 100%; }
 
   body {
@@ -551,6 +580,48 @@
   }
   .footer .item { display: inline-flex; align-items: center; gap: 5px; }
 
+  /* ============================ 虚拟方向键 ============================ */
+  /* 默认隐藏：桌面用键盘/方向键；仅在触摸设备（无 hover + 粗指针）或窄屏显示 */
+  .dpad {
+    display: none;
+    flex: 0 0 auto;
+    width: min(220px, 70vw);
+    margin: 2px auto 0;
+    aspect-ratio: 1 / 1;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .dpad .dbtn {
+    appearance: none;
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--ink-soft);
+    border-radius: 14px;
+    font-size: 20px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;       /* 去掉点击 300ms 延迟，禁止双击缩放 */
+    -webkit-tap-highlight-color: transparent;
+    box-shadow: 0 2px 6px rgba(15,23,42,.10);
+    transition: transform .08s ease, background .12s ease;
+  }
+  .dpad .dbtn:active { transform: scale(.92); background: var(--accent); color: #fff; border-color: var(--accent); }
+  /* 十字布局：上在中上、左在中左、右在中右、下在中下 */
+  .dpad .up    { grid-column: 2; grid-row: 1; }
+  .dpad .left  { grid-column: 1; grid-row: 2; }
+  .dpad .right { grid-column: 3; grid-row: 2; }
+  .dpad .down  { grid-column: 2; grid-row: 3; }
+  /* 触摸设备才显示 */
+  @media (hover: none) and (pointer: coarse) {
+    .dpad { display: grid; }
+  }
+
   kbd {
     font-family: var(--font);
     font-size: 11px;
@@ -610,6 +681,19 @@
         <path id="slash" d="M3 3l18 18" style="display:none"/>
       </svg>
     </button>
+
+    <button id="themeBtn" class="icon-btn" type="button" title="切换浅色/深色主题" aria-label="切换主题">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <!-- 月亮（点击切换到深色） -->
+        <path id="moonIcon" d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>
+        <!-- 太阳（深色主题下显示，点击切回浅色） -->
+        <g id="sunIcon" style="display:none">
+          <circle cx="12" cy="12" r="4.2"/>
+          <path d="M12 2v2.4M12 19.6V22M2 12h2.4M19.6 12H22M4.9 4.9l1.7 1.7M17.4 17.4l1.7 1.7M19.1 4.9l-1.7 1.7M6.6 17.4l-1.7 1.7"/>
+        </g>
+      </svg>
+    </button>
   </header>
 
   <!-- ======================= HUD ======================= -->
@@ -648,6 +732,14 @@
     <span class="item">移动端滑动屏幕转向</span>
   </footer>
 
+  <!-- ======================= 虚拟方向键（仅触摸/窄屏显示） ======================= -->
+  <div class="dpad" id="dpad" aria-hidden="true">
+    <button id="dbtn-up"    class="dbtn up"    type="button" data-dir="up"    aria-label="上">▲</button>
+    <button id="dbtn-left"  class="dbtn left"  type="button" data-dir="left"  aria-label="左">◀</button>
+    <button id="dbtn-right" class="dbtn right" type="button" data-dir="right" aria-label="右">▶</button>
+    <button id="dbtn-down"  class="dbtn down"  type="button" data-dir="down"  aria-label="下">▼</button>
+  </div>
+
 </div>
 
 <script>
@@ -670,6 +762,7 @@
     MAX_STEPS_PER_FRAME: 4,   // 单帧最多补算的 tick 数，防止卡顿后瞬移
     STORAGE_BEST: 'snake-game.best.v1',
     STORAGE_MUTED: 'snake-game.muted.v1',
+    STORAGE_THEME: 'snake-game.theme.v1',
     STORAGE_LEADERBOARD: 'snake-leaderboard',
     LEADERBOARD_MAX: 10       // 排行榜最多保留条数
   };
@@ -1572,6 +1665,9 @@
         wave1: document.getElementById('wave1'),
         wave2: document.getElementById('wave2'),
         slash: document.getElementById('slash'),
+        themeBtn: document.getElementById('themeBtn'),
+        moonIcon: document.getElementById('moonIcon'),
+        sunIcon: document.getElementById('sunIcon'),
         stage: document.getElementById('stage')
       };
 
@@ -1583,6 +1679,25 @@
         if (!Sfx.muted) { Sfx.unlock(); Sfx.start(); }
         UI.syncSoundIcon();
       });
+
+      // 主题切换：toggle data-theme + 持久化（themeBtn 可能不存在，如测试环境，需保护）
+      const tb = this.els.themeBtn;
+      if (tb) {
+        const applyTheme = function (theme) {
+          if (theme === 'dark') document.documentElement.dataset.theme = 'dark';
+          else delete document.documentElement.dataset.theme;
+          Storage.set(Config.STORAGE_THEME, theme);
+          UI.syncThemeIcon();
+        };
+        tb.addEventListener('click', function (e) {
+          e.stopPropagation();
+          const cur = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+          applyTheme(cur === 'dark' ? 'light' : 'dark');
+        });
+        // 启动：读取持久化主题（默认浅色）
+        const savedTheme = Storage.get(Config.STORAGE_THEME, 'light');
+        applyTheme(savedTheme === 'dark' ? 'dark' : 'light');
+      }
 
       this.syncSoundIcon();
       this.updateHud();
@@ -1596,6 +1711,13 @@
       this.els.slash.style.display = on ? 'none' : '';
       this.els.soundBtn.classList.toggle('is-off', !on);
       this.els.soundBtn.title = on ? '音效：开' : '音效：关';
+    },
+
+    syncThemeIcon: function () {
+      const dark = document.documentElement.dataset.theme === 'dark';
+      if (this.els.moonIcon) this.els.moonIcon.style.display = dark ? 'none' : '';
+      if (this.els.sunIcon)  this.els.sunIcon.style.display  = dark ? '' : 'none';
+      if (this.els.themeBtn) this.els.themeBtn.title = dark ? '主题：深色（点击切浅色）' : '主题：浅色（点击切深色）';
     },
 
     updateHud: function () {
@@ -1631,7 +1753,7 @@
           '<h2>已暂停</h2>' +
           '<p class="desc">当前得分 <b>' + Game.score + '</b>　最高分 <b>' + Game.best + '</b></p>' +
           '<button class="btn" id="ovBtn" type="button">继续游戏</button>' +
-          '<p class="hint">按 空格 / Esc 继续，按 R 重新开始</p>';
+          '<p class="hint">按 空格 / Esc 继续，移动端轻点屏幕继续，按 R 重新开始</p>';
 
       } else if (s === STATE.GAMEOVER) {
         const title = Game.win ? '通关啦！' : '游戏结束';
@@ -1861,6 +1983,23 @@
       stage.addEventListener('touchstart', this.onTouchStart.bind(this), { passive: true });
       stage.addEventListener('touchmove', this.onTouchMove.bind(this), { passive: false });
       stage.addEventListener('touchend', this.onTouchEnd.bind(this), { passive: true });
+
+      // 虚拟方向键（仅触摸/窄屏显示）：pointerdown 即时转向，防 300ms 延迟与缩放
+      const dpadDirs = ['up', 'down', 'left', 'right'];
+      for (let i = 0; i < dpadDirs.length; i++) {
+        const btn = document.getElementById('dbtn-' + dpadDirs[i]);
+        if (!btn) continue;
+        (function (el, dirName) {
+          el.addEventListener('pointerdown', function (e) {
+            e.preventDefault();
+            Sfx.unlock();
+            const dir = DIR[dirName];
+            if (!dir) return;
+            if (Game.state === STATE.READY) App.start();
+            Game.queueDirection(dir);
+          });
+        })(btn, dpadDirs[i]);
+      }
     },
 
     onKeyDown: function (e) {
@@ -1938,9 +2077,13 @@
       const dx = t.clientX - start.x;
       const dy = t.clientY - start.y;
 
-      // 位移过小视为点击：仅在开始界面生效（游戏中/结束界面交给 overlay 的 click 处理，避免双重触发）
+      // 位移过小视为轻点（tap）：
+      //   - 游戏中 -> 暂停（满足"移动端轻点暂停"，overlay 此时 hidden 不抢事件）
+      //   - 准备态 -> 开始（保留原"轻点开始"能力）
+      //   - 结束/暂停态 overlay 已显示，轻点交给 overlay 的 click -> primaryAction 处理，避免双重触发
       if (Math.abs(dx) < 24 && Math.abs(dy) < 24) {
-        if (Game.state === STATE.READY) App.start();
+        if (Game.state === STATE.PLAYING) App.pause();
+        else if (Game.state === STATE.READY) App.start();
         return;
       }
 
@@ -2185,7 +2328,9 @@
       }
 
       if (needRender) {
-        Fx.update(dt);
+        // 暂停/结束/准备态不跑 Fx.update：Fx.time 不累加、headPulse 不衰减、粒子不更新
+        // -> 画面完全定格（蛇/食物/粒子冻结），即"暂停特效冻结"
+        if (Game.state === STATE.PLAYING) Fx.update(dt);
         Renderer.render(renderAlpha, Fx.time);
         this._lastRenderTs = now;
       }

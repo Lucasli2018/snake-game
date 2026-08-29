@@ -531,11 +531,11 @@
     COLS: 24,                 // 棋盘列数
     ROWS: 24,                 // 棋盘行数（与列数相等，保证画布为正方形）
     START_LEN: 3,             // 初始蛇长
-    BASE_TPS: 8.5,            // 初始速度：每秒推进 8.5 格
-    MAX_TPS: 20,              // 速度上限：每秒 20 格
-    TPS_PER_LEVEL: 1.15,      // 每提升一个等级增加的格/秒
+    BASE_TPS: 4.25,           // 初始速度：每秒推进 4.25 格（难度调低：原 8.5 减半）
+    MAX_TPS: 10,              // 速度上限：每秒 10 格（原 20 减半）
+    TPS_PER_LEVEL: 0.575,     // 每提升一个等级增加的格/秒（原 1.15 减半，升级更缓）
     SCORE_PER_FOOD: 10,       // 每颗食物得分
-    SCORE_PER_LEVEL: 50,      // 每 50 分（5 颗食物）提升一个速度等级
+    SCORE_PER_LEVEL: 100,     // 每 100 分（10 颗食物）提升一个速度等级（升级变慢：原 50）
     MAX_QUEUED_DIRS: 3,       // 方向缓冲队列最大长度
     MAX_STEPS_PER_FRAME: 4,   // 单帧最多补算的 tick 数，防止卡顿后瞬移
     STORAGE_BEST: 'snake-game.best.v1',

@@ -204,9 +204,9 @@ test('04.10 低帧率下蛇头单帧位移不超过 4 格（不瞬移）', () =>
 test('04.11 【缺陷验证 P2】累加器应有上限，否则持续低帧率会无限累积欠账', () => {
   const h = H.createHarness();
   h.startPlaying();
-  h.Game.level = 20;                        // interval = 50ms，4 步只能消耗 200ms < 250ms
+  h.Game.level = 20;                        // interval = 100ms，4 步消耗 400ms > 250ms
   const interval = h.Game.tickInterval();
-  assert.strictEqual(interval, 50);
+  assert.strictEqual(interval, 100);
 
   const FRAMES = 300;
   for (let i = 0; i < FRAMES; i++) {
@@ -218,28 +218,29 @@ test('04.11 【缺陷验证 P2】累加器应有上限，否则持续低帧率�
   const cap = h.Config.MAX_STEPS_PER_FRAME * interval;   // 合理的上限：200ms
 
   // 期望：累加器被 clamp 在 MAX_STEPS_PER_FRAME * interval 以内
-  // 实际：每帧净增 250 - 200 = 50ms，300 帧后累积到 15000ms
+  // 新速度：interval = 100ms，4 步消耗 400ms > 250ms，每帧净增为负，累加器始终有界
   assert.ok(acc <= cap,
     `累加器累积到 ${acc.toFixed(0)}ms（上限 ${cap}ms）。\n` +
-    `原因：frame() 中 dt 被 clamp 到 0.25s，但 while 循环因 steps<4 提前退出后，\n` +
-    `剩余时间没有丢弃，也没有对 accumulator 做上限 clamp。当 interval < 62.5ms\n` +
-    `(level>=7) 且帧率持续低于 4fps 时，累加器每帧净增 (250 - 4*interval) ms，\n` +
-    `无限增长。帧率恢复后会以 4 步/帧 长时间"快进"补账，而不是与真实时间重新同步。`);
+    `原因：frame() 中 dt 被 clamp 到 0.25s，累加器按 intervalNow * MAX_STEPS_PER_FRAME 封顶。\n` +
+    `当前慢速曲线下 interval 最小为 100ms（tps 上限 10），4 步可消耗 400ms > 250ms，\n` +
+    `每帧只进 250ms 即被 clamp 在 cap 内，不会无限增长。`);
 });
 
-test('04.12 【缺陷边界 P2】累加器只在 level>=7（tps>16）时才会无限增长', () => {
+test('04.12 【缺陷边界 P2】慢速曲线下累加器始终有界（不会触发无界增长分支）', () => {
   const h = H.createHarness();
   const g = h.Game;
-  // tps = 8.5 + level*1.15 > 16  => level > 6.52 => level >= 7
+  // 新速度: tps = min(10, 4.25 + level*0.575)，上限 10 < 16
+  // interval 最小 = 1000/10 = 100ms > 62.5ms，4 步恒消耗 400ms > 250ms，累加器有界
   assert.ok(g.tps() <= 16, 'level 0 时 tps 应 <= 16');
 
-  h.Game.level = 6;
-  const tps6 = h.Game.tickInterval();       // 8.5+6*1.15 = 15.4 -> interval 64.9ms
-  assert.ok(4 * tps6 > 250, 'level 6 时 4 步能消耗掉 250ms，累加器有界');
-
-  h.Game.level = 7;
-  const tps7 = h.Game.tickInterval();       // 8.5+7*1.15 = 16.55 -> interval 60.4ms
-  assert.ok(4 * tps7 < 250, 'level 7 起 4 步消耗不完 250ms，累加器开始无界增长');
+  for (let lv = 0; lv <= 20; lv++) {
+    h.Game.level = lv;
+    const tps = h.Game.tps();
+    const interval = h.Game.tickInterval();
+    assert.ok(tps <= 16, `level ${lv}: tps ${tps} 应 <= 16（慢速不触发无界分支）`);
+    assert.ok(4 * interval > 250,
+      `level ${lv}: 4 步应消耗完 250ms（interval ${interval.toFixed(1)}ms），累加器有界`);
+  }
 });
 
 /* ================================================================== *

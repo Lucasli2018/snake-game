@@ -153,7 +153,7 @@ test('09.6 【P2】持续低帧率下累加器恒不超过 4×interval 的上限
   }
 });
 
-test('09.7 【P2】累加器会收敛到上限而不是无限增长（level 7 / 20 对比）', () => {
+test('09.7 【P2】累加器始终有界（被 clamp 在 interval×MAX_STEPS 内），不无限增长', () => {
   function run(level, frames) {
     const h = H.createHarness();
     h.startPlaying();
@@ -167,52 +167,56 @@ test('09.7 【P2】累加器会收敛到上限而不是无限增长（level 7 / 
     return samples;
   }
 
+  const BASE = 4.25, PER = 0.575, STEP = 4;
+  const capOf = (lv) => (1000 / (BASE + lv * PER)) * STEP;
+  const cap7 = capOf(7);    // ≈ 483ms
+  const cap20 = capOf(20);  // = 400ms
+
   const s7 = run(7, 400);
   const s20 = run(20, 400);
-  const cap20 = 50 * 4;
 
-  // 早期 vs 后期：有界的话后期不再单调增长
+  // 慢速下 interval 较大，每帧 250ms 无法被 4 步整除，累加器在 [0, cap] 间波动，
+  // 但始终被 clamp 在 cap 内——证明 P2 修复生效（有界、不发散）。
+  assert.ok(Math.max(...s7) <= cap7 + 1e-6, `level 7 累加器应 <= cap ${cap7.toFixed(1)}ms`);
+  assert.ok(Math.max(...s20) <= cap20 + 1e-6, `level 20 累加器应 <= cap ${cap20.toFixed(1)}ms`);
+
   const late7 = s7.slice(200);
   const late20 = s20.slice(200);
-  const growth7 = Math.max(...late7) - Math.min(...late7);
-  const growth20 = Math.max(...late20) - Math.min(...late20);
-  assert.ok(growth7 < 1e-6, `level 7 后期累加器仍波动 ${growth7.toFixed(1)}ms，未收敛`);
-  assert.ok(growth20 < 1e-6, `level 20 后期累加器仍波动 ${growth20.toFixed(1)}ms，未收敛`);
-
-  // level 20（interval 50）封顶后应稳定在 200ms
-  assert.ok(Math.abs(late20[late20.length - 1] - cap20) < 1e-6,
-    `level 20 累加器应稳定在 ${cap20}ms，实际 ${late20[late20.length - 1]}`);
+  assert.ok(Math.max(...late7) - Math.min(...late7) < cap7,
+    `level 7 后期应不发散（波动 ${(Math.max(...late7) - Math.min(...late7)).toFixed(1)}ms）`);
+  assert.ok(Math.max(...late20) - Math.min(...late20) < cap20,
+    `level 20 后期应不发散（波动 ${(Math.max(...late20) - Math.min(...late20)).toFixed(1)}ms）`);
 });
 
 test('09.8 【P2】帧率恢复后不会长时间"快进补账"（与修复前的关键差异）', () => {
   const h = H.createHarness();
   h.startPlaying();
-  h.Game.level = 20;                            // interval = 50ms
+  h.Game.level = 20;                            // 慢速下 interval = 100ms
   const interval = h.Game.tickInterval();
-  assert.strictEqual(interval, 50);
+  assert.strictEqual(interval, 100);
 
-  // 先在 4fps 下跑 400 帧（修复前这里会累积到 15000ms）
+  // 先在 4fps 下跑 400 帧（修复前这里会累积到 15000ms；慢速下区间更大，cap=400ms）
   for (let i = 0; i < 400; i++) {
     keepAlive(h);
     h.pump(h.clock() + 250);
   }
   const accAfterLag = h.App.accumulator;
 
-  // 然后恢复到 60fps，跑 60 帧（合计 1002ms，正常应为 20 个 tick）
+  // 然后恢复到 60fps，跑 60 帧（合计 1002ms，正常应为约 10 个 tick）
   h.resetTickCount();
   for (let i = 0; i < 60; i++) {
     keepAlive(h);
     h.pump(h.clock() + 1000 / 60);
   }
   const ticks = h.tickCount();
-  const expected = 1002 / interval;             // ≈ 20
+  const expected = 1002 / interval;             // ≈ 10
 
-  // 允许最多再补 4 个 tick（正好是一帧上限 4 × 50ms = 200ms 的欠账）
+  // 允许最多再补 4 个 tick（一帧上限 4 × 100ms = 400ms 的欠账）
   const maxAllowed = Math.ceil(expected) + h.Config.MAX_STEPS_PER_FRAME;
   assert.ok(ticks <= maxAllowed,
     `帧率恢复后 60 帧内推进了 ${ticks} 个 tick，正常应为 ${Math.ceil(expected)} 个 ` +
     `（允许补 ${h.Config.MAX_STEPS_PER_FRAME} 个）。欠账起始值 ${accAfterLag.toFixed(0)}ms`);
-  assert.ok(accAfterLag <= 200 + 1e-6, `低帧率期间累积的欠账应 <=200ms，实际 ${accAfterLag.toFixed(1)}ms`);
+  assert.ok(accAfterLag <= 400 + 1e-6, `低帧率期间累积的欠账应 <=400ms（cap），实际 ${accAfterLag.toFixed(1)}ms`);
 });
 
 test('09.9 【P2】封顶不影响正常帧率下的速度（60fps 时累加器远低于上限）', () => {

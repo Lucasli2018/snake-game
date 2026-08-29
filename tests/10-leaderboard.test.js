@@ -31,7 +31,7 @@ function dieWithScore(h, score) {
   g.prevSnake = g.snake.map((c) => ({ x: c.x, y: c.y }));
   g.dir = h.DIR.left;
   g.dirQueue = [];
-  h.pumpFrames(12);              // 累计 >117ms，至少推进 1 个 tick -> 撞墙
+  h.pumpFrames(24);              // 累计 >400ms(慢速 interval≈235ms)，确保推进 tick 撞墙
   return g.state === h.STATE.GAMEOVER;
 }
 

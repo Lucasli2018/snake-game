@@ -53,7 +53,9 @@ test('08.1 走真实主循环玩 20000 帧（含吃食物/升级/死亡/重开�
   }
 
   assert.ok(deaths > 0, '2 万帧里应该至少死过一次');
-  assert.ok(maxLevel > 0, `最高等级只有 ${maxLevel}，压力不够`);
+  // 慢速下 tick 数减半，20000 帧内地吃到的食物可能不足 10 颗（level 需 floor(score/100)），
+  // 故用「蛇身变长」证明确实吃到过食物；升级曲线由 05 单独验证。
+  assert.ok(maxLen > h.Config.START_LEN, `2 万帧里应该吃到过食物（蛇最长 ${maxLen}，最高等级 ${maxLevel}）`);
   assert.deepStrictEqual(h.consoleLog, [], '运行期出现了 console 输出');
 });
 
@@ -171,7 +173,7 @@ test('08.9 吃到食物 / 撞毁时会自动触发音效（走主循环真实路
   h.Game.dir = h.DIR.left;
   h.Game.dirQueue = [];
   const before2 = ctx.nodesCreated;
-  h.pumpFrames(12);
+  h.pumpFrames(24);
   assert.strictEqual(h.Game.state, h.STATE.GAMEOVER);
   assert.ok(ctx.nodesCreated > before2, '撞毁应播放音效');
 });

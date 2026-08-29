@@ -181,7 +181,7 @@ test('03.10 端到端：撞墙后进入 gameover 并结算最高分，overlay �
   g.score = 120;
   g.best = 0;
 
-  h.pumpFrames(12);          // 累计 >117ms，确保至少推进 1 个 tick
+  h.pumpFrames(24);          // 累计 >400ms(慢速 interval≈235ms)，确保推进 tick 撞墙
 
   assert.strictEqual(g.state, h.STATE.GAMEOVER, '应进入 gameover');
   assert.strictEqual(g.deathReason, 'wall');
@@ -199,7 +199,7 @@ test('03.11 端到端：gameover 后继续推进帧不会抛异常、不会复�
   g.prevSnake = g.snake.map((c) => ({ x: c.x, y: c.y }));
   g.dir = h.DIR.left;
   g.dirQueue = [];
-  h.pumpFrames(12);
+  h.pumpFrames(24);
   assert.strictEqual(g.state, h.STATE.GAMEOVER);
 
   const snapshot = H.snakeOf(g.snake);

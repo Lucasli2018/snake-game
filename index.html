@@ -662,21 +662,22 @@
   .dpad {
     display: none;
     flex: 0 0 auto;
-    width: min(220px, 70vw);
+    width: min(140px, 50vw);
     margin: 2px auto 0;
     aspect-ratio: 1 / 1;
     grid-template-columns: repeat(3, 1fr);
     grid-template-rows: repeat(3, 1fr);
-    gap: 8px;
+    gap: 4px;
   }
   .dpad .dbtn {
     appearance: none;
     border: 1px solid var(--line);
     background: var(--card);
     color: var(--ink-soft);
-    border-radius: 14px;
-    font-size: 20px;
+    border-radius: 10px;
+    font-size: 15px;
     line-height: 1;
+    padding: 0;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -685,7 +686,7 @@
     -webkit-user-select: none;
     touch-action: manipulation;       /* 去掉点击 300ms 延迟，禁止双击缩放 */
     -webkit-tap-highlight-color: transparent;
-    box-shadow: 0 2px 6px rgba(15,23,42,.10);
+    box-shadow: 0 1px 3px rgba(15,23,42,.08);
     transition: transform .08s ease, background .12s ease;
   }
   .dpad .dbtn:active { transform: scale(.92); background: var(--accent); color: #fff; border-color: var(--accent); }

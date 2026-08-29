@@ -196,9 +196,8 @@
     position: absolute;
     inset: 7px;
     border-radius: 12px;
-    background: rgba(8, 15, 31, .74);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
+    /* 不透明深底：避免 canvas 上的飘字/HUD 透出来与面板叠在一起造成"重叠"假象 */
+    background: rgba(8, 15, 31, .94);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -2074,6 +2073,8 @@
       Game.gameOver();
       this.commitScore();
       Fx.shakeScreen();
+      // 用完震屏效果后立刻清掉残留飘字/粒子，避免遮罩半透明时被透出来叠加造成"UI 重叠"假象
+      setTimeout(function () { Fx.clear(); }, 60);
       Sfx.crash();
       if (Game.isRecord) {
         setTimeout(function () { Sfx.record(); }, 320);

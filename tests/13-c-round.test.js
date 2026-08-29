@@ -85,7 +85,7 @@ test('13.4 冰冻果：tps 临时减速，但不低于下限；到点清除', ()
   assert.strictEqual(g.speedBuffAdd, 0);
 });
 
-test('13.5 限时奖励：额外加分并同步速度等级', () => {
+test('13.5 限时奖励：额外加分（速度等级改由过关驱动，不再随分数变化）', () => {
   const h = H.createHarness();
   const g = h.Game;
   g.reset();
@@ -93,7 +93,7 @@ test('13.5 限时奖励：额外加分并同步速度等级', () => {
   g.level = 0;
   g.applySpecial({ type: 'bonus' });
   assert.strictEqual(g.score, 115, '90 + 25 = 115');
-  assert.strictEqual(g.level, 1, '跨过 100 分阈值应升到 Lv.2');
+  assert.strictEqual(g.level, 0, '限时奖励只加分，不再同步速度等级（升级改由过关）');
   assert.strictEqual(g.speedBuffAdd, 0, '限时奖励不应改变速度');
 });
 

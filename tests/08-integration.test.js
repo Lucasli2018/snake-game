@@ -53,9 +53,9 @@ test('08.1 走真实主循环玩 20000 帧（含吃食物/升级/死亡/重开�
   }
 
   assert.ok(deaths > 0, '2 万帧里应该至少死过一次');
-  // 慢速下 tick 数减半，20000 帧内地吃到的食物可能不足 10 颗（level 需 floor(score/100)），
-  // 故用「蛇身变长」证明确实吃到过食物；升级曲线由 05 单独验证。
-  assert.ok(maxLen > h.Config.START_LEN, `2 万帧里应该吃到过食物（蛇最长 ${maxLen}，最高等级 ${maxLevel}）`);
+  // 吃食物不再变长（变长改由过关触发），故用「升过级」或「蛇变长」证明确实玩进去过
+  assert.ok(maxLevel > 0 || maxLen > h.Config.START_LEN,
+    `2 万帧里应至少升过级或吃到过食物（最高等级 ${maxLevel}，蛇最长 ${maxLen}）`);
   assert.deepStrictEqual(h.consoleLog, [], '运行期出现了 console 输出');
 });
 
@@ -193,8 +193,10 @@ test('08.10 插值数据自洽：prevSnake 与 snake 的每一节最多相差 1 
     const s = h.Game.snake;
     const p = h.Game.prevSnake;
     // 变长时 prevSnake 比 snake 少一节，这是预期的
-    assert.ok(p.length === s.length || p.length === s.length - 1,
-      `第 ${step} 步：prevSnake(${p.length}) 与 snake(${s.length}) 长度关系异常`);
+    // 吃食物等长移动时 prevSnake 与 snake 等长；过关增长时 snake 比 prevSnake 多（<= GROW_PER_STAGE 节）
+    assert.ok(p.length <= s.length, `第 ${step} 步：prevSnake 不应比 snake 长`);
+    assert.ok(p.length >= s.length - (h.Config.GROW_PER_STAGE + 1),
+      `第 ${step} 步：prevSnake(${p.length}) 与 snake(${s.length}) 长度差异常（增长幅度过大）`);
     for (let i = 0; i < p.length; i++) {
       const d = Math.abs(s[i].x - p[i].x) + Math.abs(s[i].y - p[i].y);
       assert.ok(d <= 1, `第 ${step} 步第 ${i} 节从 prev 到 cur 跳了 ${d} 格，插值会拉丝`);
@@ -203,10 +205,10 @@ test('08.10 插值数据自洽：prevSnake 与 snake 的每一节最多相差 1 
   }
 });
 
-test('08.11 变长（吃到食物）那一 tick 的插值数据同样自洽', () => {
+test('08.11 吃食物是等长移动（不再变长），插值数据自洽', () => {
   const h = H.createHarness();
   h.startPlaying();
-  // 本测试只验证「吃食物变长 + 插值自洽」，关掉闯关模式以避免第 4 颗触发关卡推进
+  // 关掉闯关模式，避免吃满目标触发关卡推进（增长改由过关负责）
   h.Game.stageMode = false;
   for (let n = 0; n < 30; n++) {
     const head = h.Game.snake[0];
@@ -217,9 +219,9 @@ test('08.11 变长（吃到食物）那一 tick 的插值数据同样自洽', ()
     h.Game.food = { x: nx, y: ny };
     const lenBefore = h.Game.snake.length;
     assert.strictEqual(h.Game.tick(), 'eat');
-    assert.strictEqual(h.Game.snake.length, lenBefore + 1, '吃到食物应增长 1 节');
-    assert.strictEqual(h.Game.prevSnake.length, lenBefore, '变长时 prevSnake 应比 snake 少 1 节');
-    assert.doesNotThrow(() => h.Renderer.render(0.5), '变长那一帧渲染抛异常');
+    assert.strictEqual(h.Game.snake.length, lenBefore, '吃食物不再变长，长度不变');
+    assert.strictEqual(h.Game.prevSnake.length, lenBefore, '等长移动时 prevSnake 与 snake 等长');
+    assert.doesNotThrow(() => h.Renderer.render(0.5), '吃食物那一帧渲染抛异常');
   }
 });
 

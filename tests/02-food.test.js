@@ -185,56 +185,41 @@ test('02.7 满盘时渲染不画食物（drawFood 会提前 return），整帧�
 /* ================================================================== *
  * 3. 通关分支真的可达
  * ================================================================== */
-test('02.8 吃到最后一颗食物时 tick() 返回 win，且不会死循环', () => {
+test('02.8 闯关模式下吃满最后一关食物：tick() 返回 win，蛇身不重叠', () => {
   const h = H.createHarness();
   const g = h.Game;
-  const { COLS, ROWS } = h.Config;
-
-  // 沿哈密顿路径摆满棋盘，只留 P[0] = (0,0) 这一格给食物
-  const P = hamiltonianPath(COLS, ROWS);
-  assert.strictEqual(P.length, COLS * ROWS);
-
-  // 自证：路径相邻两格曼哈顿距离恒为 1，且覆盖全部格子（无重复）
-  const seen = new Set();
-  for (let i = 0; i < P.length; i++) {
-    const k = P[i].y * COLS + P[i].x;
-    assert.ok(!seen.has(k), '哈密顿路径出现重复格子');
-    seen.add(k);
-    if (i > 0) {
-      const d = Math.abs(P[i].x - P[i - 1].x) + Math.abs(P[i].y - P[i - 1].y);
-      assert.strictEqual(d, 1, `路径第 ${i} 步不连续`);
-    }
-  }
-
-  // snake[i] = P[i+1]，即蛇头在 P[1]=(1,0)，身体沿路径延伸到 P[575]
-  g.snake = P.slice(1).map((c) => ({ x: c.x, y: c.y }));
-  g.prevSnake = g.snake.map((c) => ({ x: c.x, y: c.y }));
-  g.food = { x: P[0].x, y: P[0].y };      // (0,0)
-  g.dir = h.DIR.left;                      // (1,0) → (0,0)
+  const c = h.Config;
+  g.reset();
+  g.stageMode = true;
+  g.stage = c.TOTAL_STAGES;        // 最后一关
+  g.stageFoods = c.STAGE_BASE_TARGET + (c.TOTAL_STAGES - 1) * c.STAGE_TARGET_STEP - 1; // 差 1 颗过关
+  g.snake = [{ x: 5, y: 5 }, { x: 4, y: 5 }, { x: 3, y: 5 }];
+  g.prevSnake = g.snake.map((s) => ({ x: s.x, y: s.y }));
+  g.dir = h.DIR.right;
+  g.dirQueue = [];
+  g.food = { x: 6, y: 5 };
   g.state = h.STATE.PLAYING;
-  g.score = (COLS * ROWS - 4) * h.Config.SCORE_PER_FOOD;
 
-  const t0 = Date.now();
   const r = g.tick();
-  const elapsed = Date.now() - t0;
-
   assert.strictEqual(r, 'win', `期望返回 win，实际 ${r}`);
-  assert.ok(elapsed < 1000, `tick 耗时 ${elapsed}ms，疑似死循环`);
   assert.strictEqual(g.win, true, 'win 标记应置位');
-  assert.strictEqual(g.snake.length, COLS * ROWS, '蛇应占满整个棋盘');
   assert.ok(!H.hasDuplicateCells(g.snake), '通关瞬间蛇身不能有重叠');
+  assert.strictEqual(g.snake.length, 3, '吃食物不变长，通关瞬间蛇长仍为初始 3');
 });
 
 test('02.9 通关后游戏状态机正确切换到 gameover，并写入最高分', () => {
   const h = H.createHarness();
-  const { COLS, ROWS } = h.Config;
-  const P = hamiltonianPath(COLS, ROWS);
   const g = h.Game;
-
-  g.snake = P.slice(1).map((c) => ({ x: c.x, y: c.y }));
-  g.prevSnake = g.snake.map((c) => ({ x: c.x, y: c.y }));
-  g.food = { x: P[0].x, y: P[0].y };
-  g.dir = h.DIR.left;
+  const c = h.Config;
+  g.reset();
+  g.stageMode = true;
+  g.stage = c.TOTAL_STAGES;
+  g.stageFoods = c.STAGE_BASE_TARGET + (c.TOTAL_STAGES - 1) * c.STAGE_TARGET_STEP - 1;
+  g.snake = [{ x: 5, y: 5 }, { x: 4, y: 5 }, { x: 3, y: 5 }];
+  g.prevSnake = g.snake.map((s) => ({ x: s.x, y: s.y }));
+  g.dir = h.DIR.right;
+  g.dirQueue = [];
+  g.food = { x: 6, y: 5 };
   g.state = h.STATE.PLAYING;
   g.score = 5000;
   g.best = 0;
@@ -318,5 +303,6 @@ test('02.10 长时间随机对局：任意时刻食物都不在蛇身上', () =>
     }
   }
   assert.ok(eats > 500, `2 万步只吃到 ${eats} 颗食物，驱动可能有问题`);
-  assert.ok(maxLen > 20, `最长只长到 ${maxLen} 节，压力不够（应能触发拥挤棋盘的生成路径）`);
+  assert.strictEqual(maxLen, h.Config.START_LEN,
+    `吃普通食物不再变长，蛇长应恒为初始长度 ${h.Config.START_LEN}（实际最长 ${maxLen}，增长改由过关触发）`);
 });

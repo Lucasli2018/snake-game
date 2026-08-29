@@ -5,8 +5,8 @@
  * 覆盖：
  *   - tps = min(4 + level*0.9, 13) 单调递增、有上限、有下限
  *   - tickInterval 单调递减
- *   - level = floor(score / 100)，每 100 分（10 颗食物）升一级
- *   - 连续吃 10 颗食物时每 10 颗升一级
+ *   - 速度等级 level 由「过关」驱动（advanceStage 中 level++），不再随 score 变化
+ *   - 连续吃食物只加分、蛇身不变长；过关才升一级并增长蛇长
  *   - HUD 显示的等级 / 速度 / 进度条与内部状态一致
  */
 'use strict';
@@ -46,8 +46,7 @@ test('05.1 Config 常量与设计一致', () => {
   assert.strictEqual(c.MAX_TPS, 13);
   assert.strictEqual(c.TPS_PER_LEVEL, 0.9);
   assert.strictEqual(c.SCORE_PER_FOOD, 10);
-  assert.strictEqual(c.SCORE_PER_LEVEL, 100);
-  assert.strictEqual(c.SCORE_PER_LEVEL / c.SCORE_PER_FOOD, 10, '每 10 颗食物升一级');
+  assert.strictEqual(c.SCORE_PER_LEVEL, 100);  // 历史常量，保留（速度等级现由过关驱动，见 advanceStage）
 });
 
 test('05.2 tps 随 level 单调不减，且恒在 [4, 13] 区间内', () => {
@@ -115,7 +114,7 @@ test('05.5 tickInterval = 1000/tps，随等级单调递减', () => {
 /* ================================================================== *
  * 2. 升级阈值与得分逻辑
  * ================================================================== */
-test('05.6 level 恒等于 floor(score / 100)', () => {
+test('05.6 吃食物只加分不升级（level 不再随 score 变化，升级改由过关驱动）', () => {
   const h = H.createHarness();
   const g = h.Game;
 
@@ -123,38 +122,32 @@ test('05.6 level 恒等于 floor(score / 100)', () => {
   for (const s of scores) {
     const gg = fresh(h);
     gg.score = s;
+    gg.level = 0;
     assert.strictEqual(feedOnce(h), 'eat', `score=${s} 时应吃到食物`);
     const newScore = s + h.Config.SCORE_PER_FOOD;
-    assert.strictEqual(gg.score, newScore);
-    assert.strictEqual(gg.level, Math.floor(newScore / h.Config.SCORE_PER_LEVEL),
-      `score ${newScore} 对应的 level 应为 ${Math.floor(newScore / 100)}，实际 ${gg.level}`);
+    assert.strictEqual(gg.score, newScore, '吃食物只加分');
+    assert.strictEqual(gg.level, 0, `score=${newScore} 不应改变 level（升级改由过关触发），实际 ${gg.level}`);
+    assert.strictEqual(gg.snake.length, h.Config.START_LEN, '吃食物蛇身不变长');
   }
 });
 
-test('05.7 连续吃 10 颗：每 10 颗升一级，得分每次 +10', () => {
+test('05.7 连续吃 10 颗：每颗 +10 分、蛇身不变长、level 不变（升级改由过关）', () => {
   const h = H.createHarness();
   const g = fresh(h);
   assert.strictEqual(g.level, 0);
   assert.strictEqual(g.score, 0);
+  assert.strictEqual(g.snake.length, h.Config.START_LEN);
 
-  const trace = [];
   for (let i = 1; i <= 10; i++) {
     assert.strictEqual(feedOnce(h), 'eat', `第 ${i} 颗应吃到`);
-    trace.push({ n: i, score: g.score, level: g.level, len: g.snake.length });
     assert.strictEqual(g.score, i * 10, `第 ${i} 颗后得分应为 ${i * 10}，实际 ${g.score}`);
-    assert.strictEqual(g.level, Math.floor((i * 10) / 100),
-      `第 ${i} 颗后等级应为 ${Math.floor(i * 10 / 100)}，实际 ${g.level}`);
-    assert.strictEqual(g.snake.length, h.Config.START_LEN + i,
-      `第 ${i} 颗后蛇长应为 ${h.Config.START_LEN + i}，实际 ${g.snake.length}`);
+    assert.strictEqual(g.level, 0, `第 ${i} 颗后 level 仍应为 0（升级由过关触发），实际 ${g.level}`);
+    assert.strictEqual(g.snake.length, h.Config.START_LEN,
+      `第 ${i} 颗后蛇长应恒为 ${h.Config.START_LEN}，实际 ${g.snake.length}`);
   }
-
-  // 断点检查：每 10 颗（100 分）升一级，第 10 颗升到 level=1
-  assert.strictEqual(trace[9].level, 1, '第 10 颗食物（100 分）应升到 Lv.2(level=1)');
-  assert.strictEqual(trace[0].level, 0, '第 1 颗（10 分）还不该升级');
-  assert.strictEqual(trace[3].level, 0, '第 4 颗（40 分）还不该升级');
 });
 
-test('05.8 不吃食物时 level / tps 不变（升级只由得分驱动）', () => {
+test('05.8 不吃食物时 level / tps 不变（升级只由过关驱动）', () => {
   const h = H.createHarness();
   const g = fresh(h);
   g.food = { x: 20, y: 20 };
@@ -168,14 +161,20 @@ test('05.8 不吃食物时 level / tps 不变（升级只由得分驱动）', ()
   assert.strictEqual(g.tps(), tps0);
 });
 
-test('05.9 达到 level 10 约需 1000 分（100 颗食物），与 README 描述一致', () => {
+test('05.9 过关会升一级且提速（level++ 后 tps 提升，与闯关机制一致）', () => {
   const h = H.createHarness();
-  const g = fresh(h);
-  g.score = 1000 - h.Config.SCORE_PER_FOOD;  // 吃下这颗后正好 1000
-  feedOnce(h);
-  assert.strictEqual(g.score, 1000);
-  assert.strictEqual(g.level, 10);
-  assert.ok(Math.abs(g.tps() - 13) < 1e-9, '1000 分时速度应已触顶 13 格/秒');
+  const g = h.Game;
+  g.reset();
+  g.state = h.STATE.PLAYING;
+  assert.strictEqual(g.level, 0);
+  assert.ok(Math.abs(g.tps() - 4) < 1e-9, '初始 level 0 速度 4');
+  // 直接模拟过关升级（advanceStage 内含 level++）
+  g.advanceStage();
+  assert.strictEqual(g.level, 1, '过关应升到 level 1');
+  assert.ok(g.tps() > 4, '升级后速度应提升');
+  // 一路升到触顶
+  for (let i = 0; i < 20; i++) g.advanceStage();
+  assert.ok(Math.abs(g.tps() - 13) < 1e-9, '足够多关后速度应触顶 13 格/秒');
 });
 
 /* ================================================================== *

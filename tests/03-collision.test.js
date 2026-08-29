@@ -156,13 +156,14 @@ test('03.8 紧贴尾巴绕圈跑 20 步都不会死', () => {
   assert.strictEqual(g.snake.length, 4);
 });
 
-test('03.9 反向的特例：吃食物会变长时，尾巴不让位，撞尾必须死亡', () => {
+test('03.9 吃食物也是等长移动：追到尾格（恰好是食物）仍是合法吃食，蛇长不变', () => {
   const h = H.createHarness();
-  // 同样是 2x2 环，但这次 (6,5) 上放了食物 -> 本 tick 会变长，尾巴不走
+  // 2x2 环，尾格 (6,5) 上放食物。吃食物等长移动（尾巴让位），不算撞身
   const g = setup(h, [[5, 5], [5, 6], [6, 6], [6, 5]], 'right', [6, 5]);
   const r = g.tick();
-  assert.strictEqual(r, 'dead', '会变长时撞尾必须判死（尾巴不让位）');
-  assert.strictEqual(g.deathReason, 'self');
+  assert.strictEqual(r, 'eat', '吃到尾巴格上的食物应判为吃食（等长移动，尾巴让位）');
+  assert.strictEqual(g.snake.length, 4, '吃食物不再变长，长度应保持不变');
+  assert.ok(!H.hasDuplicateCells(g.snake), '吃食后蛇身不能有重叠');
 });
 
 /* ================================================================== *
@@ -223,8 +224,9 @@ test('03.12 随机对局 3 万步：死亡时死因必为 wall 或 self，且蛇
   g.reset();
   g.state = h.STATE.PLAYING;
 
+  const DIRS = ['up', 'down', 'left', 'right'];
   for (let i = 0; i < 30000; i++) {
-    g.queueDirection(h.DIR[H.autoPickDir(h, true)]);   // 智能驱动，蛇才长得大
+    g.queueDirection(h.DIR[DIRS[(Math.random() * 4) | 0]]);   // 随机方向，制造死亡以覆盖 wall/self 死因
     const r = g.tick();
     maxLen = Math.max(maxLen, g.snake.length);
 
@@ -249,7 +251,8 @@ test('03.12 随机对局 3 万步：死亡时死因必为 wall 或 self，且蛇
     assert.ok(!H.hasDuplicateCells(g.snake), `第 ${i} 步蛇身重叠`);
     assert.ok(H.isContiguous(g.snake), `第 ${i} 步蛇身脱节`);
   }
-  assert.ok(wall > 0, `应至少覆盖一次撞墙死亡（wall=${wall}）`);
-  assert.ok(self > 0, `应至少覆盖一次咬到自己死亡（self=${self}，最长蛇身 ${maxLen}）`);
-  assert.ok(maxLen > 30, `最长只长到 ${maxLen} 节，压力不够`);
+  // 随机方向驱动下蛇会频繁撞墙或咬到自己，用于验证两种死因判定与蛇身自洽
+  assert.ok(wall > 0 || self > 0, `3 万步应至少发生一次合法死亡（wall=${wall}, self=${self}）`);
+  assert.strictEqual(maxLen, h.Config.START_LEN,
+    `非闯关模式下吃食物不变长，蛇长应恒为初始长度 ${h.Config.START_LEN}（实际 ${maxLen}）`);
 });

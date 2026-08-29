@@ -147,7 +147,8 @@ const STATIC_IDS = [
   'overlay', 'panel', 'soundBtn', 'wave1', 'wave2', 'slash',
   'stage', 'game',
   'dpad', 'dbtn-up', 'dbtn-down', 'dbtn-left', 'dbtn-right',
-  'themeBtn', 'moonIcon', 'sunIcon'
+  'themeBtn', 'moonIcon', 'sunIcon',
+  'buffBar', 'buffIc', 'buffTx', 'buffTm'
 ];
 
 function makeElement(id, env) {

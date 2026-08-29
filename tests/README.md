@@ -52,6 +52,7 @@ cd tests && node --test
 | `10-leaderboard.test.js` | 排行榜：三屏渲染 / 入榜 / 排序 / 改名 / 清空二次确认 / 隐私模式 |
 | `11-qa-verification.test.js` | QA 独立验证：UI 重排结构、脏数据兜底、状态机耦合、速度常量反证 |
 | `12-b-round.test.js` | B 轮体验闭环：虚拟方向键 pointerdown 转向 + 反向过滤、轻点暂停/继续/开始、浅深主题切换 + 持久化 + 不干扰游戏 |
+| `13-c-round.test.js` | C 轮特殊食物：金蛇果加速 / 冰冻果减速 / 限时奖励加分、生成位置合法、tick 返回 special、buff TTL 与自动生成、渲染、状态条显隐 |
 
 ## 设计说明
 

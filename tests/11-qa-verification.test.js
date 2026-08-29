@@ -79,10 +79,12 @@ test('11.1 三屏内层全部走文档流：flex 列 + gap，无冗余绝对定�
   // go-stats：三格统计网格
   assert.ok(/\.go-stats\s*\{[^}]*display:\s*grid/.test(css), 'go-stats 应为 grid 布局');
 
-  // 全文件只允许 .overlay 一处 position:absolute（覆盖画布），内层不得出现
+  // 仅允许两处 position:absolute：.overlay（覆盖画布）与 .buff-bar（画布顶部状态条），
+  // 二者都是"覆盖在画布上的 HUD 浮层"，属必要绝对定位；三屏面板内层不得出现绝对定位。
   const abs = css.match(/position:\s*absolute/g) || [];
-  assert.strictEqual(abs.length, 1, `绝对定位应仅 1 处(.overlay)，实际 ${abs.length} 处`);
-  assert.ok(/\.overlay\s*\{[^}]*position:\s*absolute/.test(css), '唯一绝对定位应属于 .overlay');
+  assert.strictEqual(abs.length, 2, `绝对定位应仅 2 处(.overlay + .buff-bar)，实际 ${abs.length} 处`);
+  assert.ok(/\.overlay\s*\{[^}]*position:\s*absolute/.test(css), '绝对定位之一应属于 .overlay');
+  assert.ok(/\.buff-bar\s*\{[^}]*position:\s*absolute/.test(css), '绝对定位之二应属于 .buff-bar');
 });
 
 test('11.2 三屏关键字号均用相对单位 cqw（无硬编码 px 作为实际字号）', () => {

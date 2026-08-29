@@ -216,6 +216,48 @@
     touch-action: none;
   }
 
+  /* ===================== 加速/减速状态条 ===================== */
+  /* 绝对定位在画布顶部中央，pointer-events:none 不抢点击；overlay 显示时它 hidden */
+  .buff-bar {
+    position: absolute;
+    top: 7px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 13px;
+    border-radius: 99px;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: .3px;
+    pointer-events: none;
+    z-index: 3;
+    backdrop-filter: blur(3px);
+    animation: buff-in .18s ease;
+  }
+  .buff-bar[hidden] { display: none; }
+  .buff-bar.gold {
+    color: #fffbeb;
+    background: linear-gradient(100deg, rgba(245,158,11,.92), rgba(217,119,6,.9));
+    box-shadow: 0 6px 16px -6px rgba(245,158,11,.8);
+  }
+  .buff-bar.ice {
+    color: #ecfeff;
+    background: linear-gradient(100deg, rgba(34,211,238,.92), rgba(14,116,144,.9));
+    box-shadow: 0 6px 16px -6px rgba(34,211,238,.8);
+  }
+  .buff-bar .buff-ic { font-size: 15px; line-height: 1; }
+  .buff-bar .buff-tm {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    opacity: .92;
+    padding-left: 5px;
+    margin-left: 1px;
+    border-left: 1px solid rgba(255,255,255,.4);
+  }
+  @keyframes buff-in { from { opacity: 0; transform: translateX(-50%) translateY(-6px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+
   /* ============================ 遮罩层 ============================
      关键：所有遮罩模板都使用正常文档流 flex 列布局，间距交给 gap，
      字号/间距使用 cqw（容器查询宽度单位）随画布宽度优雅缩放，
@@ -715,13 +757,20 @@
 
   <!-- ======================= 舞台 ======================= -->
   <main class="stage" id="stage">
-    <div class="canvas-wrap">
-      <canvas id="game"></canvas>
+      <div class="canvas-wrap">
+        <canvas id="game"></canvas>
 
-      <div class="overlay" id="overlay">
-        <div class="panel" id="panel"></div>
+        <!-- 加速/减速状态条：仅 PLAYING/PAUSED 且吃到金蛇果/冰冻果时显示 -->
+        <div class="buff-bar" id="buffBar" hidden>
+          <span class="buff-ic" id="buffIc">⚡</span>
+          <span class="buff-tx" id="buffTx">加速</span>
+          <span class="buff-tm" id="buffTm">5.0s</span>
+        </div>
+
+        <div class="overlay" id="overlay">
+          <div class="panel" id="panel"></div>
+        </div>
       </div>
-    </div>
   </main>
 
   <!-- ======================= 底部说明 ======================= -->
@@ -764,7 +813,19 @@
     STORAGE_MUTED: 'snake-game.muted.v1',
     STORAGE_THEME: 'snake-game.theme.v1',
     STORAGE_LEADERBOARD: 'snake-leaderboard',
-    LEADERBOARD_MAX: 10       // 排行榜最多保留条数
+    LEADERBOARD_MAX: 10,      // 排行榜最多保留条数
+
+    /* ---- C 轮：特殊食物（P1 体验增强）---- */
+    SPECIAL_GOLD_ADD: 4,      // 金蛇果：临时加速 +4 格/秒
+    SPECIAL_GOLD_TIME: 5,     // 金蛇果 buff 持续 5 秒
+    SPECIAL_GOLD_TTL: 8,      // 金蛇果在场上停留 8 秒（不吃则消失）
+    SPECIAL_ICE_ADD: 3,       // 冰冻果：临时减速 3 格/秒（存为 add 负值）
+    SPECIAL_ICE_TIME: 4,      // 冰冻果 buff 持续 4 秒
+    SPECIAL_ICE_TTL: 8,       // 冰冻果在场上停留 8 秒
+    SPECIAL_BONUS_SCORE: 25,  // 限时奖励：吃到额外 +25 分
+    SPECIAL_BONUS_TIME: 6,    // 限时奖励在场上停留 6 秒（不吃则消失）
+    SPECIAL_MIN_TPS: 3,       // 减速下限（不低于此速度，保持可玩）
+    SPECIAL_SPAWN_INTERVAL: 9000  // 平均每 9 秒尝试自动生成一个特殊食物
   };
 
   const DIR = {
@@ -997,6 +1058,19 @@
 
     pause: function (paused) {
       this.tone({ freq: paused ? 520 : 380, endFreq: paused ? 380 : 520, type: 'sine', dur: 0.1, gain: 0.08 });
+    },
+
+    /** 吃到特殊食物：金蛇果明亮上扬、冰冻果清冷下行、限时奖励轻快叮咚 */
+    special: function (kind) {
+      if (kind === 'gold') {
+        this.tone({ freq: 880, endFreq: 1320, type: 'triangle', dur: 0.14, gain: 0.13 });
+      } else if (kind === 'ice') {
+        this.tone({ freq: 540, endFreq: 300, type: 'sine', dur: 0.18, gain: 0.12 });
+      } else {
+        // bonus：两声叮咚
+        this.tone({ freq: 740, endFreq: 988, type: 'triangle', dur: 0.1, gain: 0.12 });
+        this.tone({ freq: 988, endFreq: 1318, type: 'sine', dur: 0.1, gain: 0.08, delay: 0.08 });
+      }
     }
   };
 
@@ -1019,9 +1093,18 @@
     headPulse: 0,       // 吃到食物时蛇头的缩放脉冲
     occupied: null,     // Uint8Array，用于 O(1) 判断格子是否被蛇占据
 
-    /** 当前速度（格/秒） */
+    /* ---- C 轮：特殊食物 ---- */
+    special: null,             // 当前场上的特殊食物 {x,y,type,ttl,maxTtl}，null 表示无
+    speedBuffAdd: 0,           // 当前速度增益（负数表示减速），无 buff 时为 0
+    speedBuffTime: 0,          // 速度 buff 剩余秒数
+    specialSpawnTimer: 0,      // 自动生成特殊食物的计时器（ms）
+    _lastSpecial: null,        // 最近一次吃到的特殊食物 {type,x,y}（供主循环做特效）
+
+    /** 当前速度（格/秒），叠加临时速度 buff（金蛇果加速 / 冰冻果减速） */
     tps: function () {
-      return Math.min(Config.MAX_TPS, Config.BASE_TPS + this.level * Config.TPS_PER_LEVEL);
+      const base = Math.min(Config.MAX_TPS, Config.BASE_TPS + this.level * Config.TPS_PER_LEVEL);
+      const eff = base + (this.speedBuffAdd || 0);
+      return Math.max(Config.SPECIAL_MIN_TPS, eff);
     },
 
     /** 每 tick 的间隔毫秒数 */
@@ -1054,6 +1137,11 @@
       this.win = false;
       this.deathReason = '';
       this.headPulse = 0;
+      this.special = null;
+      this.speedBuffAdd = 0;
+      this.speedBuffTime = 0;
+      this.specialSpawnTimer = 0;
+      this._lastSpecial = null;
       this.placeFood();
     },
 
@@ -1086,6 +1174,10 @@
       for (let i = 0; i < this.snake.length; i++) {
         this.occupied[this.snake[i].y * Config.COLS + this.snake[i].x] = 1;
       }
+      // 特殊食物也占据一个格子，食物不得与之重叠
+      if (this.special) {
+        this.occupied[this.special.y * Config.COLS + this.special.x] = 1;
+      }
       const total = Config.COLS * Config.ROWS;
       let free = 0;
       for (let i = 0; i < total; i++) {
@@ -1103,6 +1195,102 @@
         target--;
       }
       return false;
+    },
+
+    /** 在「蛇身 + 普通食物」之外随机挑一个空格，返回 {x,y} 或 null（棋盘满） */
+    randomEmptyCell: function () {
+      this.occupied.fill(0);
+      for (let i = 0; i < this.snake.length; i++) {
+        this.occupied[this.snake[i].y * Config.COLS + this.snake[i].x] = 1;
+      }
+      if (this.food.x >= 0) {
+        this.occupied[this.food.y * Config.COLS + this.food.x] = 1;
+      }
+      const total = Config.COLS * Config.ROWS;
+      let free = 0;
+      for (let i = 0; i < total; i++) {
+        if (!this.occupied[i]) free++;
+      }
+      if (free === 0) return null;
+      let target = Math.floor(Math.random() * free);
+      for (let i = 0; i < total; i++) {
+        if (this.occupied[i]) continue;
+        if (target === 0) return { x: i % Config.COLS, y: Math.floor(i / Config.COLS) };
+        target--;
+      }
+      return null;
+    },
+
+    /** 在空格放置一个特殊食物（gold/ice/bonus）；返回是否成功 */
+    placeSpecial: function (type) {
+      const cell = this.randomEmptyCell();
+      if (!cell) return false;
+      const ttlMap = {
+        gold: Config.SPECIAL_GOLD_TTL,
+        ice: Config.SPECIAL_ICE_TTL,
+        bonus: Config.SPECIAL_BONUS_TIME
+      };
+      const ttl = ttlMap[type] || Config.SPECIAL_BONUS_TIME;
+      this.special = { x: cell.x, y: cell.y, type: type, ttl: ttl, maxTtl: ttl };
+      return true;
+    },
+
+    /**
+     * 生成特殊食物。
+     * - 不传 type：从 gold / ice / bonus 中等概率随机选一个（供自动生成）
+     * - 传 type：强制生成指定类型（供测试 / 演示）
+     * 若场上已有特殊食物则直接返回 null（同一时刻最多一颗），成功返回实际类型。
+     */
+    spawnSpecial: function (forceType) {
+      if (this.special) return null;
+      const types = ['gold', 'ice', 'bonus'];
+      const type = forceType || types[Math.floor(Math.random() * types.length)];
+      return this.placeSpecial(type) ? type : null;
+    },
+
+    /** 吃到特殊食物后的效果（不在此处做渲染/音效，交给主循环） */
+    applySpecial: function (sp) {
+      if (sp.type === 'gold') {
+        this.speedBuffAdd = Config.SPECIAL_GOLD_ADD;
+        this.speedBuffTime = Config.SPECIAL_GOLD_TIME;
+      } else if (sp.type === 'ice') {
+        this.speedBuffAdd = -Config.SPECIAL_ICE_ADD;
+        this.speedBuffTime = Config.SPECIAL_ICE_TIME;
+      } else if (sp.type === 'bonus') {
+        this.addScore(Config.SPECIAL_BONUS_SCORE);
+      }
+    },
+
+    /** 加分并同步速度等级（bonus 食物与普食都走这里，保证 level 一致） */
+    addScore: function (n) {
+      this.score += n;
+      this.level = Math.floor(this.score / Config.SCORE_PER_LEVEL);
+    },
+
+    /**
+     * 用真实经过的秒数推进「时间类」状态（仅 PLAYING 态由主循环调用，
+     * 暂停时不动 -> buff / 特殊食物随画面一起冻结）。
+     * 同时按间隔尝试自动生成特殊食物（同一时刻最多一颗）。
+     */
+    updateTimers: function (dt) {
+      if (this.speedBuffTime > 0) {
+        this.speedBuffTime -= dt;
+        if (this.speedBuffTime <= 0) {
+          this.speedBuffTime = 0;
+          this.speedBuffAdd = 0;
+        }
+      }
+      if (this.special) {
+        this.special.ttl -= dt;
+        if (this.special.ttl <= 0) this.special = null;
+      }
+      if (this.state === STATE.PLAYING) {
+        this.specialSpawnTimer += dt * 1000;
+        if (this.specialSpawnTimer >= Config.SPECIAL_SPAWN_INTERVAL && !this.special) {
+          this.specialSpawnTimer = 0;
+          this.spawnSpecial();
+        }
+      }
     },
 
     /**
@@ -1136,8 +1324,7 @@
       this.snake.unshift({ x: nx, y: ny });
 
       if (willGrow) {
-        this.score += Config.SCORE_PER_FOOD;
-        this.level = Math.floor(this.score / Config.SCORE_PER_LEVEL);
+        this.addScore(Config.SCORE_PER_FOOD);
         this.headPulse = 1;
         const placed = this.placeFood();
         if (!placed) {
@@ -1147,6 +1334,16 @@
         return 'eat';
       }
 
+      // 吃到特殊食物：不增长蛇身，但触发对应效果（金蛇果加速 / 冰冻果减速 / 限时奖励加分）
+      if (this.special && this.special.x === nx && this.special.y === ny) {
+        const sp = this.special;
+        this.special = null;
+        this._lastSpecial = { type: sp.type, x: nx, y: ny };
+        this.applySpecial(sp);
+        this.snake.pop();
+        return 'special';
+      }
+
       this.snake.pop();
       return 'move';
     },
@@ -1154,6 +1351,11 @@
     /** 结束本局并结算最高分 */
     gameOver: function () {
       this.state = STATE.GAMEOVER;
+      // 清掉场上特殊食物与速度 buff，避免结束/重开界面残留加速状态
+      this.special = null;
+      this.speedBuffAdd = 0;
+      this.speedBuffTime = 0;
+      this.specialSpawnTimer = 0;
       if (this.score > this.best) {
         this.best = this.score;
         this.isRecord = true;
@@ -1201,8 +1403,8 @@
       }
     },
 
-    burst: function (px, py, cell) {
-      const colors = ['#f87171', '#fb923c', '#fde047', '#fca5a5'];
+    burst: function (px, py, cell, colors) {
+      const palette = colors || ['#f87171', '#fb923c', '#fde047', '#fca5a5'];
       const count = 14;
       for (let i = 0; i < count; i++) {
         const a = (Math.PI * 2 * i) / count + Math.random() * 0.5;
@@ -1214,7 +1416,7 @@
           r: cell * (0.06 + Math.random() * 0.09),
           life: 0.4 + Math.random() * 0.35,
           maxLife: 0.75,
-          color: colors[i % colors.length]
+          color: palette[i % palette.length]
         });
       }
     },
@@ -1329,6 +1531,7 @@
       ctx.drawImage(this.bgCanvas, 0, 0, size, size);
 
       this.drawFood();
+      this.drawSpecial();
       this.drawSnake(alpha);
       this.drawParticles();
       this.drawFloaters();
@@ -1444,6 +1647,122 @@
       ctx.beginPath();
       ctx.ellipse(x + r * 0.52, y - r * 1.12, r * 0.36, r * 0.17, -0.5, 0, Math.PI * 2);
       ctx.fill();
+    },
+
+    /**
+     * 特殊食物（C 轮）：金蛇果 / 冰冻果 / 限时奖励。
+     * 三种外观各异，且都带「限时环」——环随 ttl 收缩，提示玩家抓紧时间。
+     */
+    drawSpecial: function () {
+      const sp = Game.special;
+      if (!sp) return;
+      const ctx = this.ctx;
+      const cell = this.cell;
+      const x = this.cx(sp.x);
+      const y = this.cy(sp.y);
+      const t = Fx.time;
+      const pulse = 1 + Math.sin(t * 4.6) * 0.06;
+      const r = cell * 0.34 * pulse;
+
+      // 限时环：剩余时间比例 → 半径从 cell*0.5 收到 cell*0.36
+      const ratio = sp.maxTtl > 0 ? Math.max(0, Math.min(1, sp.ttl / sp.maxTtl)) : 1;
+      const ringR = cell * 0.36 + (cell * 0.16) * ratio;
+
+      // 主题色（按类型区分）
+      let core1, core2, core3, glow, ring, spark;
+      if (sp.type === 'gold') {
+        core1 = '#fef3c7'; core2 = '#f59e0b'; core3 = '#b45309';
+        glow = 'rgba(245,158,11,0.34)'; ring = 'rgba(251,191,36,0.45)'; spark = '#fffbeb';
+      } else if (sp.type === 'ice') {
+        core1 = '#cffafe'; core2 = '#22d3ee'; core3 = '#0e7490';
+        glow = 'rgba(34,211,238,0.34)'; ring = 'rgba(103,232,249,0.5)'; spark = '#ecfeff';
+      } else { // bonus
+        core1 = '#fde68a'; core2 = '#fbbf24'; core3 = '#d97706';
+        glow = 'rgba(250,204,21,0.34)'; ring = 'rgba(253,224,71,0.5)'; spark = '#fffde7';
+      }
+
+      // 限时环
+      ctx.save();
+      ctx.strokeStyle = ring;
+      ctx.lineWidth = Math.max(1, cell * 0.05);
+      ctx.beginPath();
+      ctx.arc(x, y, ringR, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+
+      // 外发光
+      ctx.save();
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(x, y, ringR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // 阴影
+      ctx.save();
+      ctx.fillStyle = 'rgba(0,0,0,0.28)';
+      ctx.beginPath();
+      ctx.ellipse(x, y + r * 0.92, r * 0.85, r * 0.3, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // 主体径向渐变
+      const g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.15, x, y, r * 1.05);
+      g.addColorStop(0, core1);
+      g.addColorStop(0.5, core2);
+      g.addColorStop(1, core3);
+      ctx.fillStyle = g;
+
+      if (sp.type === 'bonus') {
+        // 限时奖励：菱形（旋转方块）造型，更醒目
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(t * 1.1);
+        const d = r * 1.05;
+        ctx.beginPath();
+        ctx.moveTo(0, -d); ctx.lineTo(d, 0); ctx.lineTo(0, d); ctx.lineTo(-d, 0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      } else {
+        // 金蛇果 / 冰冻果：圆身（与苹果同一种语言）
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // 高光
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.beginPath();
+      ctx.ellipse(x - r * 0.34, y - r * 0.36, r * 0.24, r * 0.16, -0.6, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 星形闪光（旋转的小十字），强化「特殊」反馈
+      ctx.save();
+      ctx.translate(x, y - r * 1.25);
+      ctx.rotate(t * 2.2);
+      ctx.fillStyle = spark;
+      const s = Math.max(1.2, cell * 0.07);
+      ctx.globalAlpha = 0.9;
+      ctx.fillRect(-s * 0.32, -s, s * 0.64, s * 2);
+      ctx.fillRect(-s, -s * 0.32, s * 2, s * 0.64);
+      ctx.restore();
+
+      // 金蛇果 / 冰冻果 的果梗 + 叶子（bonus 不需要）
+      if (sp.type !== 'bonus') {
+        ctx.strokeStyle = sp.type === 'gold' ? '#7c4a12' : '#0e7490';
+        ctx.lineWidth = Math.max(1, cell * 0.075);
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(x, y - r * 0.78);
+        ctx.quadraticCurveTo(x + r * 0.12, y - r * 1.12, x + r * 0.3, y - r * 1.25);
+        ctx.stroke();
+
+        ctx.fillStyle = sp.type === 'gold' ? '#4ade80' : '#a5f3fc';
+        ctx.beginPath();
+        ctx.ellipse(x + r * 0.52, y - r * 1.12, r * 0.36, r * 0.17, -0.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
     },
 
     /**
@@ -1668,7 +1987,11 @@
         themeBtn: document.getElementById('themeBtn'),
         moonIcon: document.getElementById('moonIcon'),
         sunIcon: document.getElementById('sunIcon'),
-        stage: document.getElementById('stage')
+        stage: document.getElementById('stage'),
+        buffBar: document.getElementById('buffBar'),
+        buffIc: document.getElementById('buffIc'),
+        buffTx: document.getElementById('buffTx'),
+        buffTm: document.getElementById('buffTm')
       };
 
       this.els.overlay.addEventListener('click', function () { App.primaryAction(); });
@@ -1729,6 +2052,28 @@
       const span = Config.MAX_TPS - Config.BASE_TPS;
       const pct = span <= 0 ? 100 : ((Game.tps() - Config.BASE_TPS) / span) * 100;
       this.els.speedFill.style.width = Math.max(4, Math.min(100, pct)).toFixed(1) + '%';
+    },
+
+    /**
+     * 刷新加速/减速状态条（金蛇果 / 冰冻果 buff 期间显示）。
+     * 暂停时 buff 冻结，倒数也跟着定格，符合「暂停特效冻结」；
+     * 非 PLAYING/PAUSED 或无 buff 时隐藏。
+     */
+    updateBuff: function () {
+      const bar = this.els.buffBar;
+      if (!bar) return;
+      const active = (Game.state === STATE.PLAYING || Game.state === STATE.PAUSED);
+      if (active && Game.speedBuffAdd !== 0 && Game.speedBuffTime > 0) {
+        const gold = Game.speedBuffAdd > 0;
+        bar.hidden = false;
+        bar.classList.toggle('gold', gold);
+        bar.classList.toggle('ice', !gold);
+        if (this.els.buffIc) this.els.buffIc.textContent = gold ? '⚡' : '❄';
+        if (this.els.buffTx) this.els.buffTx.textContent = gold ? '加速' : '减速';
+        if (this.els.buffTm) this.els.buffTm.textContent = Game.speedBuffTime.toFixed(1) + 's';
+      } else {
+        bar.hidden = true;
+      }
     },
 
     /** 根据状态渲染遮罩面板内容（三屏均走正常文档流，用 gap 隔开层级） */
@@ -1811,6 +2156,7 @@
 
       this.els.panel.innerHTML = html;
       this.els.overlay.hidden = false;
+      this.updateBuff();
 
       const self = this;
       const btn = document.getElementById('ovBtn');
@@ -2262,6 +2608,9 @@
         const interval = Game.tickInterval();
         this.accumulator += dt * 1000;
 
+        // 真实时间推进 buff / 特殊食物 TTL / 自动生成（暂停态由 B 轮逻辑跳过，画面冻结）
+        Game.updateTimers(dt);
+
         let steps = 0;
         while (this.accumulator >= interval &&
                steps < Config.MAX_STEPS_PER_FRAME &&
@@ -2275,6 +2624,24 @@
           if (result === 'dead') {
             this.endGame();
             break;
+          }
+
+          if (result === 'special') {
+            const ls = Game._lastSpecial;
+            const px = Renderer.cx(ls.x);
+            const py = Renderer.cy(ls.y);
+            if (ls.type === 'gold') {
+              Fx.burst(px, py, Renderer.cell, ['#fde047', '#fbbf24', '#f59e0b', '#fef3c7']);
+              Fx.floatText(px, py - Renderer.cell * 0.5, '⚡加速');
+            } else if (ls.type === 'ice') {
+              Fx.burst(px, py, Renderer.cell, ['#a5f3fc', '#22d3ee', '#67e8f9', '#ecfeff']);
+              Fx.floatText(px, py - Renderer.cell * 0.5, '❄减速');
+            } else {
+              Fx.burst(px, py, Renderer.cell, ['#fde68a', '#fbbf24', '#fcd34d', '#fffbeb']);
+              Fx.floatText(px, py - Renderer.cell * 0.5, '+' + Config.SPECIAL_BONUS_SCORE);
+            }
+            Sfx.special(ls.type);
+            UI.updateHud();
           }
 
           if (result === 'eat' || result === 'win') {
@@ -2310,6 +2677,7 @@
           this.alpha = Math.max(0, Math.min(1, this.accumulator / intervalNow));
         }
         renderAlpha = this.alpha;
+        UI.updateBuff();
       } else {
         // 非 PLAYING 态：累加器/alpha 保持不变（暂停时不清，resume 时再清），
         // 这样切到后台再回来时不会因为长时间 dt 累加而触发补算。

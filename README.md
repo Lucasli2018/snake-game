@@ -31,6 +31,7 @@
 - 方向缓冲队列，彻底防住 180° 反向自杀和「一帧内连按两次穿身」
 - 速度随分数递增，带上限（8.5 → 20 格/秒）
 - 当前得分 / 最高分（`localStorage` 持久化）/ 速度等级 + 速度进度条
+- **排行榜**（`localStorage` 持久化，最多 10 条）：开始屏展示 Top 10，结束屏显示本局名次并可改名（默认名 `Ply`，≤3 字符），清榜带 5 秒二次确认倒计时，隐私模式下静默降级
 - 四态状态机：ready / playing / paused / gameover
 - 页面切到后台或窗口失焦 → 自动暂停
 - 窗口尺寸变化 → 画布自适应重绘（按 devicePixelRatio 渲染，高分屏不糊）
@@ -94,14 +95,41 @@ const limit = willGrow ? snake.length : snake.length - 1;  // 不吃食物时尾
 ```
 Config    配置常量
 Storage   localStorage 读写（try-catch 兜底隐私模式）
+Leaderboard  排行榜存储 / 排序 / 去重 / 改名 / 清榜（同 Storage 兜底）
 Sfx       Web Audio 音效合成
 Game      纯游戏逻辑（不触碰 DOM）
 Fx        粒子 / 飘字 / 震屏（只影响表现层）
 Renderer  纯渲染（不修改游戏状态）
-UI        HUD + 遮罩面板
+UI        HUD + 遮罩面板 + 排行榜渲染
 Input     键盘 + 触摸滑动
 App       状态切换 + 主循环
 ```
+
+### 遮罩层（三屏）布局
+
+开始 / 暂停 / 结束三套 overlay 模板全部走**正常文档流**（`flex` 纵向列 + `gap`），不使用绝对定位叠字，彻底消除「游戏结束」大字与副标题 / 分数上下重叠的问题。字号 / 间距统一使用 `clamp(min, cqw, max)`（容器查询宽度单位，随画布宽度缩放）或 `em`，**不硬编码 px**：
+
+- 标题 `h2`：`clamp(24px, 7cqw, 40px)`，按「容器宽度」递缩
+- 说明 `.desc`：`clamp(12px, 3cqw, 15px)`
+- 按钮 `.btn`：`clamp(14px, 3.5cqw, 16px)`
+- 分数 `.scores .v`：`clamp(18px, 4.8cqw, 28px)`
+- 各区块之间用 `gap: clamp(8px, 2.2cqw, 14px)` 隔开，窄屏不重叠、不断行错乱
+
+开始屏底部带排行榜 Top 10 列表（无数据显示「暂无记录」），结束屏显示「你的名次：#X / 共 Y 条」与改名输入框，暂停屏**不含**排行榜。
+
+### 排行榜
+
+键 `snake-leaderboard`，`JSON` 数组、最多 `LEADERBOARD_MAX`（10）条，每条：
+
+```js
+{ name: string(≤3字符), score: number, date: ISO date string, duration: number(秒) }
+```
+
+- 名次按分数降序、同分按时间倒序（新的在前）
+- **同名同分视为同一条记录**：再次提交会替换旧记录并保留最新时间
+- 结束一局后默认以 `Ply` 入榜，可在结束屏点击「改名」改成 ≤3 字符、回车或点「保存」确认（改名即换名，成绩与时间不变）
+- 开始屏「清空」按钮采用 **5 秒二次确认倒计时**：首次点击进入确认态（按钮显示「确认清空 (Ns)」倒数），5 秒内再次点击才真正清空，超时自动取消 —— 防止误点
+- 读取 / 写入全部 `try-catch` 兜底，脏数据（非法 JSON / 非数组 / 字段异常）降级为空榜或忽略该条，绝不抛异常崩溃
 
 ## 调参
 
@@ -124,5 +152,15 @@ SCORE_PER_LEVEL: 50,   // 每多少分升一级（50 分 = 5 颗食物）
 ```
 snake-game/
 ├── index.html   # 完整游戏（HTML + CSS + JS 全部内联，无任何外部资源引用）
-└── README.md
+├── README.md
+└── tests/       # Node 内置 test runner 测试（harness 抽离 index.html 内联脚本在 vm 沙箱实跑）
+    ├── harness.js            # 测试脚手架：最小 DOM / Canvas / WebAudio / localStorage 替身
+    ├── 01~09-*.test.js      # 原有玩法 / 状态机 / 存储 / 回归测试（129 条）
+    └── 10-leaderboard.test.js  # 排行榜测试（24 条，≥149 全绿）
+```
+
+### 跑测试
+
+```bash
+cd tests && node --test
 ```

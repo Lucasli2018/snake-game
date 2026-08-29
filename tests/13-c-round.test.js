@@ -40,9 +40,9 @@ test('13.2 无 buff 时 tps 与原曲线完全一致（不破坏速度体验）'
   const g = h.Game;
   g.reset();
   assert.strictEqual(g.speedBuffAdd, 0, '初始应无 buff');
-  assert.strictEqual(g.tps(), 5, 'level 0 速度应仍为 5');
+  assert.strictEqual(g.tps(), 4, 'level 0 速度应仍为 4');
   g.level = 10;
-  assert.ok(Math.abs(g.tps() - 16) < 1e-9, '高等级触顶 16 不受影响');
+  assert.ok(Math.abs(g.tps() - 13) < 1e-9, '高等级触顶 13 不受影响');
 });
 
 /* ================================================================== *
@@ -55,13 +55,13 @@ test('13.3 金蛇果：tps 临时 +4，且到点后自动清除', () => {
   g.applySpecial({ type: 'gold' });
   assert.strictEqual(g.speedBuffAdd, 4);
   assert.strictEqual(g.speedBuffTime, h.Config.SPECIAL_GOLD_TIME);
-  assert.ok(Math.abs(g.tps() - 9) < 1e-9, '5 + 4 = 9 格/秒');
+  assert.ok(Math.abs(g.tps() - 8) < 1e-9, '4 + 4 = 8 格/秒');
 
   // 时间耗尽后 buff 归零
   g.updateTimers(h.Config.SPECIAL_GOLD_TIME + 0.1);
   assert.strictEqual(g.speedBuffAdd, 0, 'buff 到点应清除');
   assert.strictEqual(g.speedBuffTime, 0);
-  assert.strictEqual(g.tps(), 5, '清除后速度复原');
+  assert.strictEqual(g.tps(), 4, '清除后速度复原');
 });
 
 test('13.4 冰冻果：tps 临时减速，但不低于下限；到点清除', () => {
@@ -69,17 +69,17 @@ test('13.4 冰冻果：tps 临时减速，但不低于下限；到点清除', ()
   const g = h.Game;
   const c = h.Config;
 
-  g.reset();                          // level 0，base = 5
+  g.reset();                          // level 0，base = 4
   g.applySpecial({ type: 'ice' });
   assert.strictEqual(g.speedBuffAdd, -c.SPECIAL_ICE_ADD);
   const slowed = g.tps();
-  assert.ok(slowed < 5, '应比初始速度慢');
+  assert.ok(slowed < 4, '应比初始速度慢');
   assert.ok(slowed >= c.SPECIAL_MIN_TPS, '不得低于减速下限 ' + c.SPECIAL_MIN_TPS + '，实际 ' + slowed);
 
   // 高等级下减速仍生效但不破下限
   g.level = 20;
   g.applySpecial({ type: 'ice' });
-  assert.strictEqual(g.tps(), 16 - c.SPECIAL_ICE_ADD, '高等级减速应为 16 - 3');
+  assert.strictEqual(g.tps(), c.MAX_TPS - c.SPECIAL_ICE_ADD, '高等级减速应为 13 - 3');
 
   g.updateTimers(c.SPECIAL_ICE_TIME + 0.1);
   assert.strictEqual(g.speedBuffAdd, 0);

@@ -174,12 +174,12 @@ test('09.7 【P2】累加器始终有界（被 clamp 在 interval×MAX_STEPS 内
     return samples;
   }
 
-  const BASE = 5, PER = 1.15, STEP = 4, CAP = 16;
-  // 触顶后用 16 替代 BASE+lv*PER（与 Game.tps 一致）
+  const BASE = 4, PER = 0.9, STEP = 4, CAP = 13;
+  // 触顶后用 13 替代 BASE+lv*PER（与 Game.tps 一致）
   const tpsOf = (lv) => Math.min(CAP, BASE + lv * PER);
   const capOf = (lv) => (1000 / tpsOf(lv)) * STEP;
   const cap7 = capOf(7);    // ≈ 306.5ms
-  const cap20 = capOf(20);  // = 250ms（已触顶 16 tps）
+  const cap20 = capOf(20);  // ≈ 307.7ms（已触顶 13 tps）
 
   const s7 = run(7, 400);
   const s20 = run(20, 400);
@@ -200,18 +200,18 @@ test('09.7 【P2】累加器始终有界（被 clamp 在 interval×MAX_STEPS 内
 test('09.8 【P2】帧率恢复后不会长时间"快进补账"（与修复前的关键差异）', () => {
   const h = H.createHarness();
   h.startPlaying();
-  h.Game.level = 20;                            // 当前曲线下 interval = 62.5ms（已触顶 16 tps）
+  h.Game.level = 20;                            // 当前曲线下 interval = 1000/13 ≈ 76.9ms（已触顶 13 tps）
   const interval = h.Game.tickInterval();
-  assert.strictEqual(interval, 62.5);
+  assert.ok(Math.abs(interval - 1000 / 13) < 1e-9);
 
-  // 先在 4fps 下跑 400 帧（修复前这里会无限累积；当前曲线下 cap=250ms）
+  // 先在 4fps 下跑 400 帧（修复前这里会无限累积；当前曲线下 cap≈307.7ms）
   for (let i = 0; i < 400; i++) {
     keepAlive(h);
     h.pump(h.clock() + 250);
   }
   const accAfterLag = h.App.accumulator;
 
-  // 然后恢复到 60fps，跑 60 帧（合计 1002ms，正常应为约 16 个 tick）
+  // 然后恢复到 60fps，跑 60 帧（合计 1002ms，正常应为约 13 个 tick）
   h.resetTickCount();
   for (let i = 0; i < 60; i++) {
     keepAlive(h);
@@ -220,12 +220,12 @@ test('09.8 【P2】帧率恢复后不会长时间"快进补账"（与修复前�
   const ticks = h.tickCount();
   const expected = 1002 / interval;             // ≈ 16
 
-  // 允许最多再补 4 个 tick（一帧上限 4 × 62.5 = 250ms 的欠账）
+  // 允许最多再补 4 个 tick（一帧上限 4 × 1000/13 ≈ 307.7ms 的欠账）
   const maxAllowed = Math.ceil(expected) + h.Config.MAX_STEPS_PER_FRAME;
   assert.ok(ticks <= maxAllowed,
     `帧率恢复后 60 帧内推进了 ${ticks} 个 tick，正常应为 ${Math.ceil(expected)} 个 ` +
     `（允许补 ${h.Config.MAX_STEPS_PER_FRAME} 个）。欠账起始值 ${accAfterLag.toFixed(0)}ms`);
-  assert.ok(accAfterLag <= 250 + 1e-6, `低帧率期间累积的欠账应 <=250ms（cap），实际 ${accAfterLag.toFixed(1)}ms`);
+  assert.ok(accAfterLag <= h.Config.MAX_STEPS_PER_FRAME * interval + 1e-6, `低帧率期间累积的欠账应 <=${(h.Config.MAX_STEPS_PER_FRAME * interval).toFixed(0)}ms（cap），实际 ${accAfterLag.toFixed(1)}ms`);
 });
 
 test('09.9 【P2】封顶不影响正常帧率下的速度（60fps 时累加器远低于上限）', () => {

@@ -8,7 +8,7 @@
  *   3. Top 10 截断（15 条随机分数）
  *   5. 改名交互（中文名 + 名次随分数更新）
  *   7. localStorage 兜底（score 为字符串 / 缺字段 / 缺日期 脏数据）
- *   8. 速度调整：BASE_TPS=5 / TPS_PER_LEVEL=1.15 / MAX_TPS=16
+ *   8. 速度调整：BASE_TPS=4 / TPS_PER_LEVEL=0.9 / MAX_TPS=13
  *  10. 状态机耦合（GameOver→自动入榜→改名→重开，名字不跨局）
  *
  * 关于「不重叠」的证明方法：headless harness 没有布局引擎，无法真正量测像素。
@@ -284,16 +284,16 @@ test('11.12 脏数据：缺字段（无 score / 无 date）不崩且被合理归
 });
 
 /* ================================================================== *
- * 8. 速度调整后：BASE_TPS=5 / TPS_PER_LEVEL=1.15 / MAX_TPS=16
+ * 8. 速度调整后：BASE_TPS=4 / TPS_PER_LEVEL=0.9 / MAX_TPS=13
  * ================================================================== */
 
-test('11.13 速度常量按设计：BASE_TPS=5 / TPS_PER_LEVEL=1.15 / MAX_TPS=16', () => {
+test('11.13 速度常量按设计：BASE_TPS=4 / TPS_PER_LEVEL=0.9 / MAX_TPS=13', () => {
   const c = H.createHarness().Config;
-  assert.strictEqual(c.BASE_TPS, 5, 'BASE_TPS 必须是 5（起始速度）');
+  assert.strictEqual(c.BASE_TPS, 4, 'BASE_TPS 必须是 4（起始速度）');
   assert.notStrictEqual(c.BASE_TPS, 4.25, '不得是之前的 4.25 慢速');
-  assert.strictEqual(c.TPS_PER_LEVEL, 1.15, 'TPS_PER_LEVEL 必须是 1.15（每级增量）');
+  assert.strictEqual(c.TPS_PER_LEVEL, 0.9, 'TPS_PER_LEVEL 必须是 0.9（每级增量）');
   assert.notStrictEqual(c.TPS_PER_LEVEL, 0.575, '不得是之前的 0.575 慢增量');
-  assert.strictEqual(c.MAX_TPS, 16, 'MAX_TPS 必须是 16（速度上限）');
+  assert.strictEqual(c.MAX_TPS, 13, 'MAX_TPS 必须是 13（速度上限）');
   assert.notStrictEqual(c.MAX_TPS, 10, '不得是之前的 10 慢上限');
 
   // 曲线端到端：level 递增单调上升且触顶 16
@@ -307,7 +307,7 @@ test('11.13 速度常量按设计：BASE_TPS=5 / TPS_PER_LEVEL=1.15 / MAX_TPS=16
     prev = t;
   }
   g.level = 999;
-  assert.strictEqual(g.tps(), 16, '高等级应触顶 16');
+  assert.strictEqual(g.tps(), 13, '高等级应触顶 13');
 });
 
 /* ================================================================== *

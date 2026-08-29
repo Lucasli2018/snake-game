@@ -204,9 +204,9 @@ test('04.10 低帧率下蛇头单帧位移不超过 4 格（不瞬移）', () =>
 test('04.11 【缺陷验证 P2】累加器应有上限，否则持续低帧率会无限累积欠账', () => {
   const h = H.createHarness();
   h.startPlaying();
-  h.Game.level = 20;                        // interval = 62.5ms（已触顶 16 tps），4 步消耗 250ms
+  h.Game.level = 20;                        // interval = 1000/13 ≈ 76.9ms（已触顶 13 tps），4 步消耗 ≈307.7ms
   const interval = h.Game.tickInterval();
-  assert.strictEqual(interval, 62.5);
+  assert.ok(Math.abs(interval - 1000 / 13) < 1e-9);
 
   const FRAMES = 300;
   for (let i = 0; i < FRAMES; i++) {
@@ -218,26 +218,26 @@ test('04.11 【缺陷验证 P2】累加器应有上限，否则持续低帧率�
   const cap = h.Config.MAX_STEPS_PER_FRAME * interval;   // 合理的上限：250ms
 
   // 期望：累加器被 clamp 在 MAX_STEPS_PER_FRAME * interval 以内
-  // 当前曲线：interval = 62.5ms，4 步消耗 250ms == dt 上限，每帧净增为 0，累加器始终有界
+  // 当前曲线：interval = 1000/13 ≈ 76.9ms，4 步消耗 ≈307.7ms > dt 上限 250ms，每帧净增为负，累加器始终有界
   assert.ok(acc <= cap,
     `累加器累积到 ${acc.toFixed(0)}ms（上限 ${cap}ms）。\n` +
     `原因：frame() 中 dt 被 clamp 到 0.25s，累加器按 intervalNow * MAX_STEPS_PER_FRAME 封顶。\n` +
-    `当前曲线下 interval 最小为 62.5ms（tps 上限 16），4 步可消耗 250ms == dt 上限，\n` +
+    `当前曲线下 interval 最小为 1000/13 ≈ 76.9ms（tps 上限 13），4 步可消耗 ≈307.7ms > dt 上限 250ms，\n` +
     `累加器被 clamp 在 cap 内，不会无限增长。`);
 });
 
 test('04.12 【缺陷边界 P2】累加器始终有界（不会触发无界增长分支）', () => {
   const h = H.createHarness();
   const g = h.Game;
-  // 当前曲线: tps = min(16, 5 + level*1.15)
-  // interval 最小 = 1000/16 = 62.5ms，4 步消耗 250ms == dt 上限，累加器恒有界
-  assert.ok(g.tps() <= 16, 'level 0 时 tps 应 <= 16');
+  // 当前曲线: tps = min(13, 4 + level*0.9)
+  // interval 最小 = 1000/13 ≈ 76.9ms，4 步消耗 ≈307.7ms > dt 上限 250ms，累加器恒有界
+  assert.ok(g.tps() <= 13, 'level 0 时 tps 应 <= 13');
 
   for (let lv = 0; lv <= 20; lv++) {
     h.Game.level = lv;
     const tps = h.Game.tps();
     const interval = h.Game.tickInterval();
-    assert.ok(tps <= 16, `level ${lv}: tps ${tps} 应 <= 16`);
+    assert.ok(tps <= 13, `level ${lv}: tps ${tps} 应 <= 13`);
     // 4 步应至少消化完 dt 的 250ms 上限（用 >= 兼容 4*62.5 恰好 == 250 的边界）
     assert.ok(4 * interval >= 250,
       `level ${lv}: 4 步应至少消化 250ms（interval ${interval.toFixed(1)}ms），累加器有界`);

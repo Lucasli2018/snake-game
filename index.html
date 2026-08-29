@@ -55,11 +55,6 @@
       0 18px 40px -12px rgba(0,0,0,.55),
       0 2px 8px rgba(0,0,0,.3);
   }
-  :root[data-theme="dark"] .stage-chip {
-    background: rgba(15, 23, 42, .82);
-    border-color: rgba(255, 255, 255, .08);
-    box-shadow: 0 2px 10px rgba(0,0,0,.45);
-  }
 
   html, body { height: 100%; }
 
@@ -192,36 +187,33 @@
     background: linear-gradient(90deg, var(--accent), var(--brand-2));
     transition: width .25s ease;
   }
-  /* 关卡悬浮芯片：放在画布上沿居中，紧凑、不占 flex 高度，给画布让出空间 */
-  .stage-chip {
-    position: absolute;
-    top: 14px;
-    left: 50%;
-    transform: translate(-50%, 0);
-    z-index: 2;
-    pointer-events: none;
-    display: inline-flex;
+  /* 关卡指示条：放在画布外的 HUD 下方（绝对不遮挡游戏界面），居中、紧凑 */
+  .stage-bar {
+    flex: 0 0 auto;
+    display: flex;
+    justify-content: center;
     align-items: center;
     gap: 8px;
-    padding: 5px 12px;
+    padding: 6px 14px;
+    margin: -4px auto 0;
     border-radius: 999px;
-    background: rgba(255, 255, 255, .82);
-    color: var(--ink);
-    border: 1px solid rgba(15, 23, 42, .08);
-    box-shadow: 0 2px 8px rgba(15, 23, 42, .08);
+    background: var(--card);
+    border: 1px solid var(--line);
+    color: var(--ink-soft);
     font-size: 12px;
     font-weight: 700;
     letter-spacing: .2px;
     line-height: 1;
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
     white-space: nowrap;
     user-select: none;
+    align-self: center;
+    box-shadow: 0 1px 2px rgba(15,23,42,.04);
+    max-width: fit-content;
   }
-  .stage-chip-l { color: var(--ink-faint); font-size: 11px; }
-  .stage-chip-n { color: var(--brand); }
-  .stage-chip-sep { color: var(--ink-faint); opacity: .5; }
-  .stage-chip-p { color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+  .stage-bar-l { color: var(--ink-faint); font-size: 11px; }
+  .stage-bar-n { color: var(--brand); }
+  .stage-bar-sep { color: var(--ink-faint); opacity: .55; }
+  .stage-bar-p { color: var(--ink-faint); font-variant-numeric: tabular-nums; }
 
   /* ============================ 舞台 ============================ */
   .stage {
@@ -657,48 +649,8 @@
   }
   .footer .item { display: inline-flex; align-items: center; gap: 5px; }
 
-  /* ============================ 虚拟方向键 ============================ */
-  /* 默认隐藏：桌面用键盘/方向键；仅在触摸设备（无 hover + 粗指针）或窄屏显示 */
-  .dpad {
-    display: none;
-    flex: 0 0 auto;
-    width: min(140px, 50vw);
-    margin: 2px auto 0;
-    aspect-ratio: 1 / 1;
-    grid-template-columns: repeat(3, 1fr);
-    grid-template-rows: repeat(3, 1fr);
-    gap: 4px;
-  }
-  .dpad .dbtn {
-    appearance: none;
-    border: 1px solid var(--line);
-    background: var(--card);
-    color: var(--ink-soft);
-    border-radius: 10px;
-    font-size: 15px;
-    line-height: 1;
-    padding: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    user-select: none;
-    -webkit-user-select: none;
-    touch-action: manipulation;       /* 去掉点击 300ms 延迟，禁止双击缩放 */
-    -webkit-tap-highlight-color: transparent;
-    box-shadow: 0 1px 3px rgba(15,23,42,.08);
-    transition: transform .08s ease, background .12s ease;
-  }
-  .dpad .dbtn:active { transform: scale(.92); background: var(--accent); color: #fff; border-color: var(--accent); }
-  /* 十字布局：上在中上、左在中左、右在中右、下在中下 */
-  .dpad .up    { grid-column: 2; grid-row: 1; }
-  .dpad .left  { grid-column: 1; grid-row: 2; }
-  .dpad .right { grid-column: 3; grid-row: 2; }
-  .dpad .down  { grid-column: 2; grid-row: 3; }
-  /* 触摸设备才显示 */
-  @media (hover: none) and (pointer: coarse) {
-    .dpad { display: grid; }
-  }
+  /* ============================ 虚拟方向键（已移除）：移动端改用屏幕滑动转向 + 轻点暂停 ============================ */
+  /* 见 Input.onTouchMove/onTouchEnd；保留此占位以便后续 grep 找到迁移位置 */
 
   kbd {
     font-family: var(--font);
@@ -791,18 +743,18 @@
     </div>
     </section>
 
+  <!-- 关卡指示条：放在 HUD 与画布之间（画布外面），显示「第 N 关 · 食物 X/Y」，绝不遮挡游戏界面 -->
+  <div class="stage-bar" id="stageBar" aria-live="polite">
+    <span class="stage-bar-l">关卡</span>
+    <span class="stage-bar-n" id="stageEl">第 1 关</span>
+    <span class="stage-bar-sep">·</span>
+    <span class="stage-bar-p" id="stageProgEl">食物 0/4</span>
+  </div>
+
   <!-- ======================= 舞台 ======================= -->
   <main class="stage" id="stage">
       <div class="canvas-wrap">
         <canvas id="game"></canvas>
-
-        <!-- 关卡悬浮芯片：紧凑显示「第 N 关 · 食物 X/Y」，不占 flex 高度，让画布拿到更多空间 -->
-        <div class="stage-chip" id="stageChip" aria-live="polite">
-          <span class="stage-chip-l">关卡</span>
-          <span class="stage-chip-n" id="stageEl">第 1 关</span>
-          <span class="stage-chip-sep">·</span>
-          <span class="stage-chip-p" id="stageProgEl">食物 0/4</span>
-        </div>
 
         <!-- 加速/减速状态条：仅 PLAYING/PAUSED 且吃到金蛇果/冰冻果时显示 -->
         <div class="buff-bar" id="buffBar" hidden>
@@ -824,14 +776,6 @@
     <span class="item"><kbd>R</kbd> 重开</span>
     <span class="item">移动端滑动屏幕转向</span>
   </footer>
-
-  <!-- ======================= 虚拟方向键（仅触摸/窄屏显示） ======================= -->
-  <div class="dpad" id="dpad" aria-hidden="true">
-    <button id="dbtn-up"    class="dbtn up"    type="button" data-dir="up"    aria-label="上">▲</button>
-    <button id="dbtn-left"  class="dbtn left"  type="button" data-dir="left"  aria-label="左">◀</button>
-    <button id="dbtn-right" class="dbtn right" type="button" data-dir="right" aria-label="右">▶</button>
-    <button id="dbtn-down"  class="dbtn down"  type="button" data-dir="down"  aria-label="下">▼</button>
-  </div>
 
 </div>
 
@@ -2743,23 +2687,6 @@
       stage.addEventListener('touchstart', this.onTouchStart.bind(this), { passive: true });
       stage.addEventListener('touchmove', this.onTouchMove.bind(this), { passive: false });
       stage.addEventListener('touchend', this.onTouchEnd.bind(this), { passive: true });
-
-      // 虚拟方向键（仅触摸/窄屏显示）：pointerdown 即时转向，防 300ms 延迟与缩放
-      const dpadDirs = ['up', 'down', 'left', 'right'];
-      for (let i = 0; i < dpadDirs.length; i++) {
-        const btn = document.getElementById('dbtn-' + dpadDirs[i]);
-        if (!btn) continue;
-        (function (el, dirName) {
-          el.addEventListener('pointerdown', function (e) {
-            e.preventDefault();
-            Sfx.unlock();
-            const dir = DIR[dirName];
-            if (!dir) return;
-            if (Game.state === STATE.READY) App.start();
-            Game.queueDirection(dir);
-          });
-        })(btn, dpadDirs[i]);
-      }
     },
 
     onKeyDown: function (e) {

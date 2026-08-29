@@ -146,7 +146,6 @@ const STATIC_IDS = [
   'scoreEl', 'bestEl', 'levelEl', 'tpsEl', 'speedFill',
   'overlay', 'panel', 'soundBtn', 'wave1', 'wave2', 'slash',
   'stage', 'game',
-  'dpad', 'dbtn-up', 'dbtn-down', 'dbtn-left', 'dbtn-right',
   'themeBtn', 'moonIcon', 'sunIcon',
   'buffBar', 'buffIc', 'buffTx', 'buffTm',
   'stageEl', 'stageProgEl'

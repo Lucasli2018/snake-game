@@ -3,10 +3,10 @@
  *
  * 12 - B 轮体验闭环
  * 覆盖：
- *   - 虚拟方向键（dpad）：pointerdown 即时转向入队
+ *   - 键盘方向键：keydown 在 READY 开始+入队、PLAYING 入队、180° 反向过滤
  *   - 轻点暂停：移动端 tap 在 PLAYING 暂停、READY 开始、PAUSED 继续
  *   - 浅/深主题切换：toggle data-theme + localStorage 持久化 + 图标切换，且不干扰游戏
- * （暂停特效冻结由 08.18 专项覆盖）
+ * （暂停特效冻结由 08.18 专项覆盖；虚拟方向键 dpad 已移除，移动端用滑动屏幕转向）
  */
 'use strict';
 
@@ -14,47 +14,56 @@ const test = require('node:test');
 const assert = require('node:assert');
 const H = require('./harness');
 
-test('12.1 虚拟方向键：pointerdown 触发转向（含反向过滤）', () => {
+test('12.1 键盘方向键：READY 开始+入队、PLAYING 合法方向入队、180° 反向过滤', () => {
   const h = H.createHarness();
   assert.strictEqual(h.Game.state, h.STATE.READY, '初始应为准备态');
 
-  // READY 时点方向键应开始游戏并入队
-  h.els.get('dbtn-up').fire('pointerdown', { preventDefault() {} });
-  assert.strictEqual(h.Game.state, h.STATE.PLAYING, 'READY 点方向键应开始游戏');
+  // READY 时按上方向键：开始游戏 + 入队 up
+  h.key('ArrowUp', 'ArrowUp');
+  assert.strictEqual(h.Game.state, h.STATE.PLAYING, 'READY 按方向键应开始游戏');
   assert.strictEqual(h.Game.dirQueue.length, 1, '开始时应入队一个方向');
-  assert.deepStrictEqual(h.Game.dirQueue[0], h.DIR.up, '上键入队 up');
+  assert.deepStrictEqual(h.Game.dirQueue[0], h.DIR.up, 'ArrowUp 应入队 up');
 
-  // 基于当前 dir 找一个不同轴（合法垂直转向）的方向键名，验证 PLAYING 态也入队
+  // 找与当前 dir 不同轴的合法方向键（WASD），验证 PLAYING 态入队
   const cur = h.Game.dir;
-  const byName = {
-    'dbtn-up': h.DIR.up, 'dbtn-down': h.DIR.down,
-    'dbtn-left': h.DIR.left, 'dbtn-right': h.DIR.right
+  const byKey = {
+    'w': h.DIR.up, 'W': h.DIR.up,
+    's': h.DIR.down, 'S': h.DIR.down,
+    'a': h.DIR.left, 'A': h.DIR.left,
+    'd': h.DIR.right, 'D': h.DIR.right,
+    'ArrowLeft': h.DIR.left, 'ArrowRight': h.DIR.right
   };
-  let validName = null;
-  for (const name in byName) {
-    const d = byName[name];
-    // 与当前 dir 不同轴（非同向、非反向）即合法新方向
+  let validKey = null;
+  let validDir = null;
+  for (const k in byKey) {
+    const d = byKey[k];
     const sameAxis = (d.x !== 0 && cur.x !== 0) || (d.y !== 0 && cur.y !== 0);
-    if (!sameAxis) { validName = name; break; }
+    if (!sameAxis) { validKey = k; validDir = d; break; }
   }
-  assert.ok(validName, '应能找到与当前 dir 垂直的有效方向键');
+  assert.ok(validKey && validDir, '应能找到与当前 dir 垂直的有效方向键');
 
   h.Game.dirQueue.length = 0;
-  h.els.get(validName).fire('pointerdown', { preventDefault() {} });
-  assert.strictEqual(h.Game.dirQueue.length, 1, 'PLAYING 态点合法方向键应入队');
-  assert.deepStrictEqual(h.Game.dirQueue[0], byName[validName], '入队方向正确');
+  h.key(validKey);
+  assert.strictEqual(h.Game.dirQueue.length, 1, 'PLAYING 态合法方向键应入队');
+  assert.deepStrictEqual(h.Game.dirQueue[0], validDir, '入队方向正确');
 
   // 已入队方向的反向键应被 180° 过滤忽略（避免穿身）
-  const validDir = byName[validName];
-  let oppName = null;
-  for (const name in byName) {
-    const d = byName[name];
-    if (d.x === -validDir.x && d.y === -validDir.y) { oppName = name; break; }
-  }
-  assert.ok(oppName, '应能找到已入队方向的反向键');
   const before = h.Game.dirQueue.length;
-  h.els.get(oppName).fire('pointerdown', { preventDefault() {} });
-  assert.strictEqual(h.Game.dirQueue.length, before, '已入队方向的反向键应被过滤，不入队');
+  h.key(validKey === 'w' ? 's' : (validKey === 'a' ? 'd' : validKey === 'ArrowLeft' ? 'ArrowRight' : 'ArrowUp'));
+  // 反向要看入队的方向是谁；上面入队的是 validDir（与初始 up 垂直的某个轴方向），反向键入队该方向的反向
+  // 为简单：直接按刚刚入队的 validDir 的反向键，验证队列不变（已有反向过滤）
+  // 这里再取一遍反向键名（基于 validDir）：
+  const oppKey = (() => {
+    for (const k in byKey) {
+      const d = byKey[k];
+      if (d.x === -validDir.x && d.y === -validDir.y) return k;
+    }
+    return null;
+  })();
+  assert.ok(oppKey, '应能找到已入队方向的反向键');
+  const beforeOpp = h.Game.dirQueue.length;
+  h.key(oppKey);
+  assert.strictEqual(h.Game.dirQueue.length, beforeOpp, '已入队方向的反向键应被过滤，不入队');
 });
 
 test('12.2 主题切换：浅/深 toggle + 持久化 + 图标切换', () => {

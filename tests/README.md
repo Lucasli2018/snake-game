@@ -44,7 +44,7 @@ cd tests && node --test
 | `02-food.test.js` | 食物生成：5000 次随机零重叠、满盘兜底、哈密顿路径验证通关分支可达 |
 | `03-collision.test.js` | 碰撞判定：四面墙、咬自己、追尾合法、死因文案、3 万步一致性 |
 | `04-pause-resume.test.js` | 暂停恢复与累加器：dt clamp、visibilitychange/blur、单帧步数上限 |
-| `05-speed-curve.test.js` | 速度曲线：`min(4+0.9L, 13)` 单调性与上限（level 9=12.1、level 10 触顶 13）、每 100 分升级 |
+| `05-speed-curve.test.js` | 速度曲线：`min(4+0.9L, 13)` 单调性与上限（level 9=12.1、level 10 触顶 13）、速度等级由过关驱动（advanceStage 中 level++，吃食物不变长） |
 | `06-storage.test.js` | localStorage 兜底：undefined / 抛异常 / 脏数据 |
 | `07-static.test.js` | 静态检查：零外链、无 console、语法、标签配平 |
 | `08-integration.test.js` | 集成压力：2 万帧真实主循环、resize、音效、触摸、插值自洽 |

@@ -187,6 +187,13 @@
     background: linear-gradient(90deg, var(--accent), var(--brand-2));
     transition: width .25s ease;
   }
+  .stage-track {
+    margin-top: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--ink-faint);
+    letter-spacing: .2px;
+  }
 
   /* ============================ 舞台 ============================ */
   .stage {
@@ -753,6 +760,11 @@
       <div class="value">Lv.<span id="levelEl">1</span></div>
       <div class="speed-track"><div class="speed-fill" id="speedFill"></div></div>
     </div>
+    <div class="stat stage">
+      <div class="label">关卡</div>
+      <div class="value" id="stageEl">第 1 关</div>
+      <div class="stage-track"><span id="stageProgEl">食物 0/4</span></div>
+    </div>
   </section>
 
   <!-- ======================= 舞台 ======================= -->
@@ -825,7 +837,17 @@
     SPECIAL_BONUS_SCORE: 25,  // 限时奖励：吃到额外 +25 分
     SPECIAL_BONUS_TIME: 6,    // 限时奖励在场上停留 6 秒（不吃则消失）
     SPECIAL_MIN_TPS: 3,       // 减速下限（不低于此速度，保持可玩）
-    SPECIAL_SPAWN_INTERVAL: 9000  // 平均每 9 秒尝试自动生成一个特殊食物
+    SPECIAL_SPAWN_INTERVAL: 9000, // 平均每 9 秒尝试自动生成一个特殊食物
+
+    /* ---- D 轮：关卡 / 障碍 / Boss 蛇（P1 体验增强）---- */
+    TOTAL_STAGES: 6,         // 通关所需关卡数（清空第 6 关 = 胜利）
+    STAGE_BASE_TARGET: 4,    // 第 1 关需吃到的食物数
+    STAGE_TARGET_STEP: 2,    // 每关递增的食物目标（第 N 关 = 4 + (N-1)*2）
+    OBSTACLE_STEP: 3,        // 每升一关新增的障碍物数量（第 1 关无障碍，第 2 关起出现）
+    BOSS_FIRST_STAGE: 3,     // Boss 蛇首次出现的关卡
+    BOSS_EVERY: 3,           // 之后每隔几关再来一次（3、6…）
+    BOSS_LEN: 7,             // Boss 蛇初始长度
+    BOSS_SPEED_TPS: 4        // Boss 蛇移动速度（格/秒，独立于玩家）
   };
 
   const DIR = {
@@ -1100,6 +1122,18 @@
     specialSpawnTimer: 0,      // 自动生成特殊食物的计时器（ms）
     _lastSpecial: null,        // 最近一次吃到的特殊食物 {type,x,y}（供主循环做特效）
 
+    /* ---- D 轮：关卡 / 障碍 / Boss 蛇 ---- */
+    stageMode: false,          // 闯关模式总开关（App.start/restart 时开启；单测可关）
+    stage: 1,                  // 当前关卡（从 1 开始）
+    stageFoods: 0,             // 当前关已吃到的食物数
+    stageTarget: 0,            // 当前关目标食物数（吃满即过关）
+    obstacles: [],             // 障碍物列表 [{x,y}]
+    boss: null,                // Boss 蛇对象 {snake,prevSnake,dir,acc} 或 null
+    bossAcc: 0,                // Boss 移动累加器（ms）
+    bossHitPlayer: false,      // Boss 本帧撞到玩家（主循环据此判死）
+    stageBannerText: '',       // 关卡横幅文案（如「第 3 关」）
+    stageBannerTime: 0,        // 关卡横幅剩余显示时间（秒）
+
     /** 当前速度（格/秒），叠加临时速度 buff（金蛇果加速 / 冰冻果减速） */
     tps: function () {
       const base = Math.min(Config.MAX_TPS, Config.BASE_TPS + this.level * Config.TPS_PER_LEVEL);
@@ -1142,6 +1176,18 @@
       this.speedBuffTime = 0;
       this.specialSpawnTimer = 0;
       this._lastSpecial = null;
+
+      /* ---- D 轮：关卡状态（保留外部设置的 stageMode 开关，不在此重置）---- */
+      this.stage = 1;
+      this.stageFoods = 0;
+      this.stageTarget = Config.STAGE_BASE_TARGET;
+      this.obstacles = [];
+      this.boss = null;
+      this.bossAcc = 0;
+      this.bossHitPlayer = false;
+      this.stageBannerText = '';
+      this.stageBannerTime = 0;
+
       this.placeFood();
     },
 
@@ -1178,6 +1224,10 @@
       if (this.special) {
         this.occupied[this.special.y * Config.COLS + this.special.x] = 1;
       }
+      // 障碍物同样占据格子
+      for (let i = 0; i < this.obstacles.length; i++) {
+        this.occupied[this.obstacles[i].y * Config.COLS + this.obstacles[i].x] = 1;
+      }
       const total = Config.COLS * Config.ROWS;
       let free = 0;
       for (let i = 0; i < total; i++) {
@@ -1205,6 +1255,10 @@
       }
       if (this.food.x >= 0) {
         this.occupied[this.food.y * Config.COLS + this.food.x] = 1;
+      }
+      // 障碍物也占位
+      for (let i = 0; i < this.obstacles.length; i++) {
+        this.occupied[this.obstacles[i].y * Config.COLS + this.obstacles[i].x] = 1;
       }
       const total = Config.COLS * Config.ROWS;
       let free = 0;
@@ -1248,6 +1302,151 @@
       return this.placeSpecial(type) ? type : null;
     },
 
+    /* ---- D 轮：关卡 / 障碍 / Boss 蛇 ---- */
+
+    /** 某格是否为障碍物 */
+    isObstacle: function (x, y) {
+      for (let i = 0; i < this.obstacles.length; i++) {
+        if (this.obstacles[i].x === x && this.obstacles[i].y === y) return true;
+      }
+      return false;
+    },
+
+    /** 某格是否被玩家蛇身占据（可排除蛇尾，因为尾巴本 tick 会让位） */
+    snakeOccupies: function (x, y, excludeTail) {
+      const n = excludeTail ? this.snake.length - 1 : this.snake.length;
+      for (let i = 0; i < n; i++) {
+        if (this.snake[i].x === x && this.snake[i].y === y) return true;
+      }
+      return false;
+    },
+
+    /** 某格是否被 Boss 蛇身占据（可排除蛇尾） */
+    bossOccupies: function (x, y, boss, excludeTail) {
+      if (!boss) return false;
+      const n = excludeTail ? boss.snake.length - 1 : boss.snake.length;
+      for (let i = 0; i < n; i++) {
+        if (boss.snake[i].x === x && boss.snake[i].y === y) return true;
+      }
+      return false;
+    },
+
+    /** 往场上追加 count 个障碍物（避开蛇 / 食物 / 特殊食物 / 已有障碍）；棋盘满则提前停止 */
+    addObstacles: function (count) {
+      for (let k = 0; k < count; k++) {
+        const cell = this.randomEmptyCell();
+        if (!cell) break;
+        this.obstacles.push(cell);
+      }
+    },
+
+    /** 第 stage 关是否为 Boss 关 */
+    isBossStage: function (stage) {
+      return stage >= Config.BOSS_FIRST_STAGE &&
+             (stage - Config.BOSS_FIRST_STAGE) % Config.BOSS_EVERY === 0;
+    },
+
+    /**
+     * 生成 Boss 蛇：从四个角落候选锚点里挑一个不与蛇/障碍重叠的，
+     * 沿边横向铺开 BOSS_LEN 节。实在没有空位则降级为不生成（不影响通关）。
+     */
+    spawnBoss: function () {
+      const len = Config.BOSS_LEN;
+      const cand = [
+        { x: 1, y: 1, dir: DIR.right },
+        { x: Config.COLS - 2, y: 1, dir: DIR.left },
+        { x: 1, y: Config.ROWS - 2, dir: DIR.right },
+        { x: Config.COLS - 2, y: Config.ROWS - 2, dir: DIR.left }
+      ];
+      for (let c = 0; c < cand.length; c++) {
+        const anchor = cand[c];
+        const cells = [];
+        let ok = true;
+        for (let i = 0; i < len; i++) {
+          const x = anchor.x + anchor.dir.x * i;
+          const y = anchor.y + anchor.dir.y * i;
+          if (x < 0 || y < 0 || x >= Config.COLS || y >= Config.ROWS) { ok = false; break; }
+          if (this.isObstacle(x, y) || this.snakeOccupies(x, y) || this.bossOccupies(x, y)) { ok = false; break; }
+          cells.push({ x: x, y: y });
+        }
+        if (ok) {
+          this.boss = {
+            snake: cells,
+            prevSnake: cells.map(function (s) { return { x: s.x, y: s.y }; }),
+            dir: anchor.dir,
+            acc: 0
+          };
+          this.bossAcc = 0;
+          return;
+        }
+      }
+      this.boss = null;
+    },
+
+    /** 过关：进入下一关，累加障碍，按需生成 Boss，刷新横幅 */
+    advanceStage: function () {
+      this.stage++;
+      this.stageFoods = 0;
+      this.stageTarget = Config.STAGE_BASE_TARGET + (this.stage - 1) * Config.STAGE_TARGET_STEP;
+      // 每升一关新增障碍（第 1 关无障碍，第 2 关起出现，关卡越后越难）
+      this.addObstacles(Config.OBSTACLE_STEP);
+      // 清掉场上特殊食物，避免新布局把它卡在死角
+      this.special = null;
+      this.speedBuffAdd = 0;
+      this.speedBuffTime = 0;
+      // Boss 关则生成本关 Boss 蛇，否则移除
+      if (this.isBossStage(this.stage)) this.spawnBoss();
+      else this.boss = null;
+      // 关卡横幅
+      this.stageBannerText = '第 ' + this.stage + ' 关';
+      this.stageBannerTime = 2.0;
+    },
+
+    /** 用真实时间推进 Boss 蛇（仅 PLAYING 且存在 Boss 时由主循环调用） */
+    updateBoss: function (dt) {
+      if (!this.boss) return;
+      this.bossAcc += dt * 1000;
+      const interval = 1000 / Config.BOSS_SPEED_TPS;
+      let guard = 0;
+      while (this.bossAcc >= interval && guard < 8) {
+        this.bossAcc -= interval;
+        guard++;
+        this.stepBoss();
+        if (this.bossHitPlayer) break;
+      }
+    },
+
+    /** Boss 蛇走一步：朝食物（无食物则朝玩家头）移动，避开墙/障碍/双方身体 */
+    stepBoss: function () {
+      const b = this.boss;
+      if (!b) return;
+      const target = (this.food.x >= 0) ? this.food : this.snake[0];
+      const head = b.snake[0];
+      const dirs = [DIR.up, DIR.down, DIR.left, DIR.right];
+      let best = null, bestScore = Infinity;
+      for (let i = 0; i < dirs.length; i++) {
+        const d = dirs[i];
+        const nx = head.x + d.x, ny = head.y + d.y;
+        if (nx < 0 || ny < 0 || nx >= Config.COLS || ny >= Config.ROWS) continue;
+        if (this.isObstacle(nx, ny)) continue;
+        if (this.bossOccupies(nx, ny, b, true)) continue;   // 允许跟在尾巴后（不咬自己）
+        // 注意：Boss 不躲避玩家蛇身，才会主动追击并撞上玩家 -> 形成真实威胁
+        const dist = Math.abs(nx - target.x) + Math.abs(ny - target.y);
+        const score = dist + (d === b.dir ? -0.5 : 0);       // 偏好保持方向更顺滑
+        if (score < bestScore) { bestScore = score; best = d; }
+      }
+      if (!best) return;                                     // 四面楚歌，原地不动
+      b.dir = best;
+      const nx = head.x + best.x, ny = head.y + best.y;
+      b.prevSnake = b.snake.map(function (s) { return { x: s.x, y: s.y }; });
+      b.snake.unshift({ x: nx, y: ny });
+      b.snake.pop();
+      // 撞到玩家：Boss 头与玩家任意一节重合 -> 玩家死亡
+      for (let i = 0; i < this.snake.length; i++) {
+        if (this.snake[i].x === nx && this.snake[i].y === ny) { this.bossHitPlayer = true; break; }
+      }
+    },
+
     /** 吃到特殊食物后的效果（不在此处做渲染/音效，交给主循环） */
     applySpecial: function (sp) {
       if (sp.type === 'gold') {
@@ -1284,6 +1483,10 @@
         this.special.ttl -= dt;
         if (this.special.ttl <= 0) this.special = null;
       }
+      if (this.stageBannerTime > 0) this.stageBannerTime -= dt;
+      if (this.stageMode && this.state === STATE.PLAYING && this.boss) {
+        this.updateBoss(dt);
+      }
       if (this.state === STATE.PLAYING) {
         this.specialSpawnTimer += dt * 1000;
         if (this.specialSpawnTimer >= Config.SPECIAL_SPAWN_INTERVAL && !this.special) {
@@ -1309,6 +1512,18 @@
         return 'dead';
       }
 
+      // 撞障碍物（D 轮）
+      if (this.isObstacle(nx, ny)) {
+        this.deathReason = 'obstacle';
+        return 'dead';
+      }
+
+      // 撞 Boss 蛇身（D 轮）
+      if (this.boss && this.bossOccupies(nx, ny, this.boss)) {
+        this.deathReason = 'boss';
+        return 'dead';
+      }
+
       // 撞自己：若本 tick 不成长，蛇尾会让出格子，因此最后一节不计入碰撞
       const willGrow = (this.food.x === nx && this.food.y === ny);
       const limit = willGrow ? this.snake.length : this.snake.length - 1;
@@ -1326,6 +1541,18 @@
       if (willGrow) {
         this.addScore(Config.SCORE_PER_FOOD);
         this.headPulse = 1;
+        this.stageFoods++;
+        // 关卡推进（仅闯关模式）：吃满目标食物即过关
+        if (this.stageMode && this.stageFoods >= this.stageTarget) {
+          if (this.stage >= Config.TOTAL_STAGES) {
+            this.win = true;                 // 清空最后一关 = 通关
+            return 'win';
+          }
+          this.advanceStage();
+          const placed = this.placeFood();
+          if (!placed) { this.win = true; return 'win'; }
+          return 'stageclear';
+        }
         const placed = this.placeFood();
         if (!placed) {
           this.win = true;
@@ -1356,6 +1583,7 @@
       this.speedBuffAdd = 0;
       this.speedBuffTime = 0;
       this.specialSpawnTimer = 0;
+      this.bossHitPlayer = false;
       if (this.score > this.best) {
         this.best = this.score;
         this.isRecord = true;
@@ -1530,11 +1758,14 @@
       // 静态层：drawImage 复用离屏烘焙（最贵的 radialGradient + 网格线 + 墙阴影只画一次）
       ctx.drawImage(this.bgCanvas, 0, 0, size, size);
 
+      this.drawObstacles();
       this.drawFood();
       this.drawSpecial();
       this.drawSnake(alpha);
+      this.drawBoss(alpha);
       this.drawParticles();
       this.drawFloaters();
+      this.drawBanner();
 
       ctx.restore();
     },
@@ -1588,6 +1819,33 @@
     drawBackground: function () { this.invalidateBg(); },
     drawGrid: function () { /* 已在 bakeBackground 中烘焙 */ },
     drawWall: function () { /* 已在 bakeBackground 中烘焙 */ },
+
+    /** 障碍物（D 轮）：石板质感的圆角方块 */
+    drawObstacles: function () {
+      const obs = Game.obstacles;
+      if (!obs || !obs.length) return;
+      const ctx = this.ctx;
+      const cell = this.cell;
+      const pad = cell * 0.08;
+      for (let i = 0; i < obs.length; i++) {
+        const o = obs[i];
+        const x = o.x * cell, y = o.y * cell;
+        const g = ctx.createLinearGradient(x, y, x + cell, y + cell);
+        g.addColorStop(0, '#475569');
+        g.addColorStop(1, '#1e293b');
+        ctx.fillStyle = g;
+        roundRect(ctx, x + pad, y + pad, cell - pad * 2, cell - pad * 2, cell * 0.18);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(148,163,184,0.35)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        // 高光点，强化体积感
+        ctx.fillStyle = 'rgba(203,213,225,0.22)';
+        ctx.beginPath();
+        ctx.arc(x + cell * 0.36, y + cell * 0.34, cell * 0.1, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    },
 
     /** 食物：带果梗、叶片与呼吸光环的苹果 */
     drawFood: function () {
@@ -1888,6 +2146,114 @@
       ctx.restore();
     },
 
+    /** Boss 蛇（D 轮）：暗红发光的危险之蛇，独立于玩家蛇绘制 */
+    drawBoss: function (alpha) {
+      const b = Game.boss;
+      if (!b || !b.snake.length) return;
+      const ctx = this.ctx;
+      const cell = this.cell;
+      const n = b.snake.length;
+
+      const pts = new Array(n);
+      for (let i = 0; i < n; i++) {
+        const cur = b.snake[i];
+        const prev = (i < b.prevSnake.length) ? b.prevSnake[i] : cur;
+        pts[i] = {
+          x: this.cx(prev.x + (cur.x - prev.x) * alpha),
+          y: this.cy(prev.y + (cur.y - prev.y) * alpha)
+        };
+      }
+
+      const path = new Path2D();
+      path.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < n; i++) path.lineTo(pts[i].x, pts[i].y);
+
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+
+      // 深色描边
+      ctx.strokeStyle = '#7f1d1d';
+      ctx.lineWidth = cell * 0.9;
+      ctx.stroke(path);
+
+      // 主体渐变
+      const grad = ctx.createLinearGradient(pts[0].x, pts[0].y, pts[n - 1].x, pts[n - 1].y);
+      grad.addColorStop(0, '#fb7185');
+      grad.addColorStop(0.5, '#e11d48');
+      grad.addColorStop(1, '#9f1239');
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = cell * 0.72;
+      ctx.stroke(path);
+
+      // 头部
+      const head = pts[0];
+      const neck = pts[Math.min(1, n - 1)];
+      let dx = head.x - neck.x, dy = head.y - neck.y;
+      let len = Math.sqrt(dx * dx + dy * dy);
+      if (len < 0.001) { dx = b.dir.x; dy = b.dir.y; len = 1; }
+      dx /= len; dy /= len;
+
+      ctx.save();
+      ctx.translate(head.x, head.y);
+      const hr = cell * 0.46;
+      ctx.shadowColor = 'rgba(225,29,72,0.85)';
+      ctx.shadowBlur = cell * 0.4;
+      const hg = ctx.createRadialGradient(-hr * 0.3, -hr * 0.3, hr * 0.1, 0, 0, hr);
+      hg.addColorStop(0, '#fecaca');
+      hg.addColorStop(1, '#ef4444');
+      ctx.fillStyle = hg;
+      ctx.beginPath();
+      ctx.arc(0, 0, hr, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // 眼睛（沿前进方向垂线对称）
+      const px = -dy, py = dx;
+      const eo = cell * 0.2, ef = cell * 0.12, er = cell * 0.13, pr = cell * 0.07;
+      for (let s = -1; s <= 1; s += 2) {
+        const ex = px * eo * s + dx * ef, ey = py * eo * s + dy * ef;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath(); ctx.arc(ex, ey, er, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#0f172a';
+        ctx.beginPath(); ctx.arc(ex + dx * er * 0.3, ey + dy * er * 0.3, pr, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
+    },
+
+    /** 关卡横幅（D 轮）：进关瞬间居中显示「第 N 关」，淡入淡出 */
+    drawBanner: function () {
+      if (Game.stageBannerTime <= 0 || !Game.stageBannerText) return;
+      const ctx = this.ctx;
+      const size = this.size;
+      const t = Game.stageBannerTime;
+      const aIn = Math.min(1, (2.0 - t) / 0.3);    // 前 0.3s 淡入
+      const aOut = Math.min(1, t / 0.5);           // 末 0.5s 淡出
+      const alpha = Math.max(0, Math.min(aIn, aOut));
+      if (alpha <= 0) return;
+      const pulse = 1 + Math.sin(Fx.time * 6) * 0.04;
+      const fontSize = Math.round(size * 0.11 * pulse);
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = '800 ' + fontSize + 'px ' + getFontFamily();
+      ctx.lineWidth = Math.max(3, size * 0.012);
+      ctx.strokeStyle = 'rgba(11,18,32,0.9)';
+      ctx.strokeText(Game.stageBannerText, size / 2, size / 2 - size * 0.02);
+      const g = ctx.createLinearGradient(0, size / 2 - fontSize, 0, size / 2 + fontSize);
+      g.addColorStop(0, '#c4b5fd');
+      g.addColorStop(1, '#8b5cf6');
+      ctx.fillStyle = g;
+      ctx.fillText(Game.stageBannerText, size / 2, size / 2 - size * 0.02);
+      if (Game.boss) {
+        ctx.font = '600 ' + Math.round(size * 0.045) + 'px ' + getFontFamily();
+        ctx.fillStyle = '#fecaca';
+        ctx.fillText('⚠ Boss 蛇出没', size / 2, size / 2 + size * 0.08);
+      }
+      ctx.restore();
+    },
+
     drawParticles: function () {
       const ctx = this.ctx;
       for (let i = 0; i < Fx.particles.length; i++) {
@@ -1991,7 +2357,9 @@
         buffBar: document.getElementById('buffBar'),
         buffIc: document.getElementById('buffIc'),
         buffTx: document.getElementById('buffTx'),
-        buffTm: document.getElementById('buffTm')
+        buffTm: document.getElementById('buffTm'),
+        stageEl: document.getElementById('stageEl'),
+        stageProgEl: document.getElementById('stageProgEl')
       };
 
       this.els.overlay.addEventListener('click', function () { App.primaryAction(); });
@@ -2052,6 +2420,16 @@
       const span = Config.MAX_TPS - Config.BASE_TPS;
       const pct = span <= 0 ? 100 : ((Game.tps() - Config.BASE_TPS) / span) * 100;
       this.els.speedFill.style.width = Math.max(4, Math.min(100, pct)).toFixed(1) + '%';
+
+      // D 轮：关卡指示
+      if (this.els.stageEl) {
+        this.els.stageEl.textContent = '第 ' + Game.stage + ' 关';
+      }
+      if (this.els.stageProgEl) {
+        this.els.stageProgEl.textContent = Game.stageMode
+          ? ('食物 ' + Game.stageFoods + '/' + Game.stageTarget)
+          : '';
+      }
     },
 
     /**
@@ -2086,7 +2464,8 @@
           '<div class="tag green">READY</div>' +
           '<h2>贪吃蛇</h2>' +
           '<p class="desc">用 <b>↑ ↓ ← →</b> 或 <b>W A S D</b> 控制方向。<br>' +
-          '吃到苹果变长加分，撞墙或撞到自己就结束。</p>' +
+          '吃到苹果变长加分，吃满目标食物进入下一关；<br>' +
+          '第 ' + Config.BOSS_FIRST_STAGE + ' / ' + Config.TOTAL_STAGES + ' 关迎战 <b>Boss 蛇</b>，撞墙、撞障碍或撞到它就结束。</p>' +
           '<button class="btn" id="ovBtn" type="button">开始游戏</button>' +
           '<p class="hint">按 空格 / 点击屏幕 开始</p>' +
           this.renderLeaderboardBlock();
@@ -2103,9 +2482,12 @@
       } else if (s === STATE.GAMEOVER) {
         const title = Game.win ? '通关啦！' : '游戏结束';
         let reason;
-        if (Game.win)                        reason = '你把整个棋盘都填满了，这不太科学……';
-        else if (Game.deathReason === 'wall') reason = '撞到墙壁了，注意提前转向。';
-        else                                  reason = '咬到自己了，别急着回头。';
+        if (Game.win)                           reason = '你清空了全部 ' + Config.TOTAL_STAGES + ' 关，这不太科学……';
+        else if (Game.deathReason === 'wall')     reason = '撞到墙壁了，注意提前转向。';
+        else if (Game.deathReason === 'obstacle') reason = '撞到障碍物了，绕着走。';
+        else if (Game.deathReason === 'boss')     reason = '被 Boss 蛇撞上了，下次离它远点。';
+        else                                       reason = '咬到自己了，别急着回头。';
+        if (!Game.win) reason += '（本局闯到第 ' + Game.stage + ' 关）';
 
         // 本局成绩已在 endGame 时写入排行榜（Leaderboard.lastRecord）
         let lbHtml = '';
@@ -2511,6 +2893,7 @@
 
     start: function () {
       if (Game.state === STATE.READY || Game.state === STATE.GAMEOVER) {
+        Game.stageMode = true;        // 闯关模式：真实开局即开启（D 轮）
         Game.reset();
       }
       Game.state = STATE.PLAYING;
@@ -2557,6 +2940,7 @@
     },
 
     restart: function () {
+      Game.stageMode = true;          // 闯关模式：重开也开启（D 轮）
       Game.reset();
       Game.state = STATE.PLAYING;
       this.gameStart = Date.now();
@@ -2610,6 +2994,10 @@
 
         // 真实时间推进 buff / 特殊食物 TTL / 自动生成（暂停态由 B 轮逻辑跳过，画面冻结）
         Game.updateTimers(dt);
+        // Boss 蛇本帧撞到玩家 -> 直接判死（不 return，下方 tick 循环因状态已变而不执行，正常续帧）
+        if (Game.bossHitPlayer && Game.state === STATE.PLAYING) {
+          this.endGame();
+        }
 
         let steps = 0;
         while (this.accumulator >= interval &&
@@ -2624,6 +3012,16 @@
           if (result === 'dead') {
             this.endGame();
             break;
+          }
+
+          if (result === 'stageclear') {
+            const px = Renderer.cx(prevFood.x);
+            const py = Renderer.cy(prevFood.y);
+            Fx.burst(px, py, Renderer.cell, ['#a78bfa', '#c4b5fd', '#8b5cf6', '#ddd6fe']);
+            Fx.floatText(px, py - Renderer.cell * 0.5, '第 ' + Game.stage + ' 关');
+            Sfx.start();
+            UI.updateHud();
+            continue;
           }
 
           if (result === 'special') {

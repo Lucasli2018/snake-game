@@ -206,6 +206,8 @@ test('08.10 插值数据自洽：prevSnake 与 snake 的每一节最多相差 1 
 test('08.11 变长（吃到食物）那一 tick 的插值数据同样自洽', () => {
   const h = H.createHarness();
   h.startPlaying();
+  // 本测试只验证「吃食物变长 + 插值自洽」，关掉闯关模式以避免第 4 颗触发关卡推进
+  h.Game.stageMode = false;
   for (let n = 0; n < 30; n++) {
     const head = h.Game.snake[0];
     const d = h.Game.dir;

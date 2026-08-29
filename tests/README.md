@@ -53,6 +53,7 @@ cd tests && node --test
 | `11-qa-verification.test.js` | QA 独立验证：UI 重排结构、脏数据兜底、状态机耦合、速度常量反证 |
 | `12-b-round.test.js` | B 轮体验闭环：虚拟方向键 pointerdown 转向 + 反向过滤、轻点暂停/继续/开始、浅深主题切换 + 持久化 + 不干扰游戏 |
 | `13-c-round.test.js` | C 轮特殊食物：金蛇果加速 / 冰冻果减速 / 限时奖励加分、生成位置合法、tick 返回 special、buff TTL 与自动生成、渲染、状态条显隐 |
+| `14-d-round.test.js` | D 轮关卡/障碍/Boss：闯关开关、关卡递进与通关、障碍物合法性、撞障碍/撞 Boss 死亡、Boss 生成与追击、关卡横幅、渲染/HUD、主循环集成、结束文案 |
 
 ## 设计说明
 

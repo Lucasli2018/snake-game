@@ -148,7 +148,8 @@ const STATIC_IDS = [
   'stage', 'game',
   'dpad', 'dbtn-up', 'dbtn-down', 'dbtn-left', 'dbtn-right',
   'themeBtn', 'moonIcon', 'sunIcon',
-  'buffBar', 'buffIc', 'buffTx', 'buffTm'
+  'buffBar', 'buffIc', 'buffTx', 'buffTm',
+  'stageEl', 'stageProgEl'
 ];
 
 function makeElement(id, env) {

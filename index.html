@@ -737,7 +737,7 @@
       <div class="value" id="bestEl">0</div>
     </div>
     <div class="stat level">
-      <div class="label">速度等级 <span id="tpsEl">5.0/s</span></div>
+      <div class="label">速度等级 <span id="tpsEl">4.0/s</span></div>
       <div class="value">Lv.<span id="levelEl">1</span></div>
       <div class="speed-track"><div class="speed-fill" id="speedFill"></div></div>
     </div>
@@ -823,7 +823,8 @@
     BOSS_FIRST_STAGE: 3,     // Boss 蛇首次出现的关卡
     BOSS_EVERY: 3,           // 之后每隔几关再来一次（3、6…）
     BOSS_LEN: 7,             // Boss 蛇初始长度
-    BOSS_SPEED_TPS: 4        // Boss 蛇移动速度（格/秒，独立于玩家）
+    BOSS_SPEED_TPS: 4,       // Boss 蛇移动速度（格/秒，独立于玩家）
+    GROW_PER_STAGE: 2        // 每过一关蛇身增长的节数（吃普通食物不变长，升级才变长）
   };
 
   const DIR = {
@@ -1364,18 +1365,60 @@
       this.stage++;
       this.stageFoods = 0;
       this.stageTarget = Config.STAGE_BASE_TARGET + (this.stage - 1) * Config.STAGE_TARGET_STEP;
+      this.level++;   // 过关升一级（速度随之变快，见 tps()）
       // 每升一关新增障碍（第 1 关无障碍，第 2 关起出现，关卡越后越难）
       this.addObstacles(Config.OBSTACLE_STEP);
       // 清掉场上特殊食物，避免新布局把它卡在死角
       this.special = null;
       this.speedBuffAdd = 0;
       this.speedBuffTime = 0;
+      // 升级增长蛇长：在尾部沿当前方向延伸
+      this.growSnake(Config.GROW_PER_STAGE);
       // Boss 关则生成本关 Boss 蛇，否则移除
       if (this.isBossStage(this.stage)) this.spawnBoss();
       else this.boss = null;
       // 关卡横幅
       this.stageBannerText = '第 ' + this.stage + ' 关';
       this.stageBannerTime = 2.0;
+    },
+
+    /** 在尾部沿合法方向延伸 n 节（升级增长蛇长用；吃食物本身等长，不增长）。
+     *  优先沿尾巴前进方向，越界或与蛇身/障碍重叠时改试其余三向，保证不越界、不脱节。 */
+    growSnake: function (n) {
+      const self = this;
+      const blocked = function (x, y) {
+        if (x < 0 || y < 0 || x >= Config.COLS || y >= Config.ROWS) return true;
+        if (self.obstacles) {
+          for (let i = 0; i < self.obstacles.length; i++) {
+            if (self.obstacles[i].x === x && self.obstacles[i].y === y) return true;
+          }
+        }
+        for (let i = 0; i < self.snake.length; i++) {
+          if (self.snake[i].x === x && self.snake[i].y === y) return true;
+        }
+        return false;
+      };
+      for (let k = 0; k < n; k++) {
+        const tail = this.snake[this.snake.length - 1];
+        const prev = this.snake[this.snake.length - 2] || { x: tail.x - 1, y: tail.y };
+        const fwd = { x: tail.x - prev.x, y: tail.y - prev.y };
+        // 候选方向：优先沿尾巴前进方向，其次其余三向（跳过回头，避免与 prev 重叠）
+        const cands = [fwd, { x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
+        let placed = false;
+        for (let c = 0; c < cands.length; c++) {
+          const d = cands[c];
+          if (d.x === -fwd.x && d.y === -fwd.y) continue;   // 回头会与 prev 重叠
+          const tx = tail.x + d.x, ty = tail.y + d.y;
+          if (blocked(tx, ty)) continue;
+          this.snake.push({ x: tx, y: ty });
+          placed = true;
+          break;
+        }
+        if (!placed) {
+          // 极端拥挤兜底：强行接到尾部前进方向（保证不死循环，极少数情况可能重叠）
+          this.snake.push({ x: tail.x + fwd.x, y: tail.y + fwd.y });
+        }
+      }
     },
 
     /** 用真实时间推进 Boss 蛇（仅 PLAYING 且存在 Boss 时由主循环调用） */
@@ -1436,10 +1479,9 @@
       }
     },
 
-    /** 加分并同步速度等级（bonus 食物与普食都走这里，保证 level 一致） */
+    /** 加分（速度等级 level 改由「过关」驱动，见 advanceStage，不再随 score 变化） */
     addScore: function (n) {
       this.score += n;
-      this.level = Math.floor(this.score / Config.SCORE_PER_LEVEL);
     },
 
     /**
@@ -1500,9 +1542,8 @@
         return 'dead';
       }
 
-      // 撞自己：若本 tick 不成长，蛇尾会让出格子，因此最后一节不计入碰撞
-      const willGrow = (this.food.x === nx && this.food.y === ny);
-      const limit = willGrow ? this.snake.length : this.snake.length - 1;
+      // 撞自己：移动是等长的（尾巴会让出当前格），因此最后一节不计入碰撞
+      const limit = this.snake.length - 1;
       for (let i = 0; i < limit; i++) {
         if (this.snake[i].x === nx && this.snake[i].y === ny) {
           this.deathReason = 'self';
@@ -1514,7 +1555,8 @@
       this.prevSnake = this.snake.map(function (s) { return { x: s.x, y: s.y }; });
       this.snake.unshift({ x: nx, y: ny });
 
-      if (willGrow) {
+      // 吃普通食物：加分 + 推进关卡，但蛇身不变长（等长移动）
+      if (this.food.x === nx && this.food.y === ny) {
         this.addScore(Config.SCORE_PER_FOOD);
         this.headPulse = 1;
         this.stageFoods++;
@@ -1522,9 +1564,11 @@
         if (this.stageMode && this.stageFoods >= this.stageTarget) {
           if (this.stage >= Config.TOTAL_STAGES) {
             this.win = true;                 // 清空最后一关 = 通关
+            this.snake.pop();                // 等长移动（不再增长）
             return 'win';
           }
-          this.advanceStage();
+          this.advanceStage();               // 过关：升一级 + 蛇身增长
+          this.snake.pop();                  // 吃食物本身等长，增长交由 advanceStage 负责
           const placed = this.placeFood();
           if (!placed) { this.win = true; return 'win'; }
           return 'stageclear';
@@ -1534,6 +1578,7 @@
           this.win = true;
           return 'win';
         }
+        this.snake.pop();                    // 等长移动
         return 'eat';
       }
 
@@ -2440,7 +2485,7 @@
           '<div class="tag green">READY</div>' +
           '<h2>贪吃蛇</h2>' +
           '<p class="desc">用 <b>↑ ↓ ← →</b> 或 <b>W A S D</b> 控制方向。<br>' +
-          '吃到苹果变长加分，吃满目标食物进入下一关；<br>' +
+          '吃到苹果加分（蛇身不变长），过关升级变长提速；吃满目标食物进入下一关；<br>' +
           '第 ' + Config.BOSS_FIRST_STAGE + ' / ' + Config.TOTAL_STAGES + ' 关迎战 <b>Boss 蛇</b>，撞墙、撞障碍或撞到它就结束。</p>' +
           '<button class="btn" id="ovBtn" type="button">开始游戏</button>' +
           '<p class="hint">按 空格 / 点击屏幕 开始</p>' +
@@ -2487,7 +2532,7 @@
             '</div>';
         }
 
-        // 蛇长 = 初始长度 + 吃到的食物数
+        // 蛇长 = 初始长度 + 过关增长（GROW_PER_STAGE × 已过关数）
         const snakeLen = Game.snake.length;
         // 速度等级 = Game.level + 1（UI 上从 1 开始计数）
         const speedLv = Game.level + 1;

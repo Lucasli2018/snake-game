@@ -89,8 +89,8 @@ test('11.2 三屏关键字号均用相对单位 cqw（无硬编码 px 作为实�
   const css = styleText();
   const checks = [
     ['.panel h2',        /\.panel\s+h2\s*\{[^}]*font-size:\s*clamp\(24px,\s*7cqw,\s*40px\)/],
-    ['.go-stats .v',       /\.go-stats\s+\.v\s*\{[^}]*font-size:\s*clamp\(16px,\s*4\.2cqw,\s*24px\)/],
-    ['.go-stats .k',       /\.go-stats\s+\.k\s*\{[^}]*font-size:\s*clamp\(10px,\s*2\.2cqw,\s*12px\)/],
+    ['.go-stats .v',       /\.go-stats\s+\.v\s*\{[^}]*font-size:\s*clamp\(14px,\s*3\.6cqw,\s*20px\)/],
+    ['.go-stats .k',       /\.go-stats\s+\.k\s*\{[^}]*font-size:\s*clamp\(9px,\s*2\.2cqw,\s*11px\)/],
     ['.panel .desc',     /\.panel\s+\.desc\s*\{[^}]*font-size:\s*clamp\(12px,\s*3cqw,\s*15px\)/],
     ['.btn',             /\.btn\s*\{[^}]*font-size:\s*clamp\(14px,\s*3\.5cqw,\s*16px\)/],
     ['.tag',             /\.tag\s*\{[^}]*font-size:\s*clamp\(10px,\s*2\.4cqw,\s*12px\)/],

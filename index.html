@@ -196,8 +196,8 @@
     position: absolute;
     inset: 7px;
     border-radius: 12px;
-    /* 不透明深底：避免 canvas 上的飘字/HUD 透出来与面板叠在一起造成"重叠"假象 */
-    background: rgba(8, 15, 31, .94);
+    /* 完全不透明深底：让 canvas 上的飘字/HUD 颜色不会透出与面板叠在一起 */
+    background: rgb(8, 15, 31);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -334,23 +334,34 @@
     border-radius: 12px;
     padding: clamp(8px, 2cqw, 12px) clamp(6px, 1.5cqw, 10px);
     min-width: 0;
+    min-height: 70px;             /* 保证三格统一高度, 不被 k/v 文本挤压变形 */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;     /* k/v 上下分别上下两端对齐, 中间留出空隙 */
+    align-items: stretch;
+    text-align: center;
+    overflow-wrap: anywhere;     /* 中文/超长文本可断字不断字 */
   }
   .go-stats .k {
-    font-size: clamp(10px, 2.2cqw, 12px);
+    font-size: clamp(9px, 2.2cqw, 11px);
     color: #94a3b8;
     letter-spacing: .4px;
     white-space: nowrap;
+    line-height: 1.2;
+    text-align: center;
   }
   .go-stats .v {
-    font-size: clamp(16px, 4.2cqw, 24px);
+    font-size: clamp(14px, 3.6cqw, 20px);
     font-weight: 800;
     font-variant-numeric: tabular-nums;
-    margin-top: 0.15em;
+    margin-top: 6px;             /* 显式间距, 杜绝 k 与 v 紧贴 */
+    line-height: 1.1;
     color: #f8fafc;
+    text-align: center;
   }
   .go-stats .cell.score .v { color: #4ade80; }
   .go-stats .cell.len   .v { color: #38bdf8; }
-  .go-stats .cell.speed .v { color: #fbbf24; font-size: clamp(14px, 3.8cqw, 22px); }
+  .go-stats .cell.speed .v { color: #fbbf24; font-size: clamp(12px, 3.2cqw, 18px); }
   .go-stats .cell.speed .v small { font-size: 0.6em; color: #cbd5e1; font-weight: 700; margin-left: 2px; }
 
   .btn {

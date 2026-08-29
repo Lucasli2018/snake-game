@@ -287,7 +287,72 @@
     border-radius: 99px;
     padding: 0.4em 1em;
     box-shadow: 0 6px 16px -6px rgba(245,158,11,.8);
+    animation: record-pulse 1.4s ease-in-out infinite;
   }
+  @keyframes record-pulse {
+    0%, 100% { transform: scale(1);    box-shadow: 0 6px 16px -6px rgba(245,158,11,.8); }
+    50%      { transform: scale(1.06); box-shadow: 0 8px 22px -6px rgba(245,158,11,1); }
+  }
+
+  /* ====================== GameOver 排名徽章 ====================== */
+  .rank-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: clamp(13px, 3.2cqw, 16px);
+    font-weight: 800; letter-spacing: .5px;
+    padding: 0.45em 1em 0.45em 0.55em;
+    border-radius: 99px;
+    background: rgba(148,163,184,.15);
+    border: 1px solid rgba(148,163,184,.32);
+    color: #e2e8f0;
+  }
+  .rank-badge .medal {
+    display: inline-grid; place-items: center;
+    width: 1.6em; height: 1.6em;
+    border-radius: 50%;
+    font-size: 0.95em;
+    font-weight: 800;
+    background: rgba(148,163,184,.25);
+    color: #f8fafc;
+  }
+  .rank-badge.gold   { background: linear-gradient(100deg, rgba(253,224,71,.22), rgba(245,158,11,.18)); border-color: rgba(253,224,71,.55); color: #fde68a; }
+  .rank-badge.gold   .medal { background: linear-gradient(140deg, #fde68a, #f59e0b); color: #7c2d12; }
+  .rank-badge.silver { background: linear-gradient(100deg, rgba(226,232,240,.22), rgba(148,163,184,.18)); border-color: rgba(226,232,240,.45); color: #e2e8f0; }
+  .rank-badge.silver .medal { background: linear-gradient(140deg, #f1f5f9, #94a3b8); color: #0f172a; }
+  .rank-badge.bronze { background: linear-gradient(100deg, rgba(217,119,6,.22), rgba(180,83,9,.18)); border-color: rgba(217,119,6,.5); color: #fdba74; }
+  .rank-badge.bronze .medal { background: linear-gradient(140deg, #fdba74, #b45309); color: #431407; }
+  .rank-badge .rank-num { font-variant-numeric: tabular-nums; }
+
+  /* ====================== GameOver 三格统计 ====================== */
+  .go-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: clamp(6px, 1.6cqw, 10px);
+    width: 100%;
+  }
+  .go-stats .cell {
+    background: rgba(148,163,184,.10);
+    border: 1px solid rgba(148,163,184,.18);
+    border-radius: 12px;
+    padding: clamp(8px, 2cqw, 12px) clamp(6px, 1.5cqw, 10px);
+    min-width: 0;
+  }
+  .go-stats .k {
+    font-size: clamp(10px, 2.2cqw, 12px);
+    color: #94a3b8;
+    letter-spacing: .4px;
+    white-space: nowrap;
+  }
+  .go-stats .v {
+    font-size: clamp(16px, 4.2cqw, 24px);
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    margin-top: 0.15em;
+    color: #f8fafc;
+  }
+  .go-stats .cell.score .v { color: #4ade80; }
+  .go-stats .cell.len   .v { color: #38bdf8; }
+  .go-stats .cell.speed .v { color: #fbbf24; font-size: clamp(14px, 3.8cqw, 22px); }
+  .go-stats .cell.speed .v small { font-size: 0.6em; color: #cbd5e1; font-weight: 700; margin-left: 2px; }
 
   .btn {
     appearance: none;
@@ -335,21 +400,77 @@
     width: 100%;
     max-height: 40vh;
     overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148,163,184,.4) transparent;
+  }
+  .lb-list::-webkit-scrollbar { width: 6px; }
+  .lb-list::-webkit-scrollbar-track { background: transparent; }
+  .lb-list::-webkit-scrollbar-thumb {
+    background: rgba(148,163,184,.35);
+    border-radius: 99px;
   }
   .lb-list li {
-    display: flex;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: 1.7em 1fr auto auto;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     font-size: clamp(11px, 2.6cqw, 13px);
-    padding: clamp(5px, 1.3cqw, 8px) clamp(6px, 1.5cqw, 10px);
-    border-radius: 8px;
+    padding: clamp(6px, 1.6cqw, 10px) clamp(8px, 2cqw, 12px);
+    border-radius: 10px;
+    margin-bottom: 2px;
+    transition: background .15s;
   }
-  .lb-list li:nth-child(odd) { background: rgba(248,250,252,0.06); }
-  .lb-list .lb-ranknum { color: #38bdf8; font-weight: 800; min-width: 1.5em; }
-  .lb-list .lb-name { flex: 1; color: #f8fafc; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .lb-list .lb-score { color: #fbbf24; font-weight: 800; font-variant-numeric: tabular-nums; }
-  .lb-list .lb-meta { color: #94a3b8; font-size: 0.9em; white-space: nowrap; }
+  .lb-list li:nth-child(odd) { background: rgba(248,250,252,0.05); }
+  .lb-list li.is-self {
+    background: linear-gradient(90deg, rgba(74,222,128,.18), rgba(56,189,248,.12)) !important;
+    border: 1px solid rgba(74,222,128,.45);
+    box-shadow: 0 0 0 1px rgba(74,222,128,.15) inset;
+  }
+  .lb-list .lb-ranknum {
+    color: #94a3b8;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+  }
+  .lb-list li.is-top1 .lb-ranknum,
+  .lb-list li.is-top2 .lb-ranknum,
+  .lb-list li.is-top3 .lb-ranknum {
+    width: 1.6em; height: 1.6em;
+    display: inline-grid; place-items: center;
+    border-radius: 50%;
+    font-size: 0.95em;
+    line-height: 1;
+  }
+  .lb-list li.is-top1 .lb-ranknum { background: linear-gradient(140deg, #fde68a, #f59e0b); color: #7c2d12; box-shadow: 0 2px 6px -1px rgba(245,158,11,.5); }
+  .lb-list li.is-top2 .lb-ranknum { background: linear-gradient(140deg, #f1f5f9, #94a3b8); color: #0f172a; box-shadow: 0 2px 6px -1px rgba(148,163,184,.5); }
+  .lb-list li.is-top3 .lb-ranknum { background: linear-gradient(140deg, #fdba74, #b45309); color: #431407; box-shadow: 0 2px 6px -1px rgba(217,119,6,.5); }
+  .lb-list .lb-name {
+    color: #f8fafc;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-weight: 700;
+  }
+  .lb-list li.is-self .lb-name::after {
+    content: '你';
+    margin-left: 6px;
+    font-size: 0.75em;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 99px;
+    background: rgba(74,222,128,.25);
+    color: #86efac;
+    border: 1px solid rgba(74,222,128,.4);
+  }
+  .lb-list .lb-score {
+    color: #fbbf24;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+  }
+  .lb-list .lb-meta {
+    color: #94a3b8;
+    font-size: 0.85em;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
   .lb-empty {
     font-size: clamp(11px, 2.6cqw, 13px);
     color: #94a3b8;
@@ -366,7 +487,6 @@
     font-size: clamp(12px, 3cqw, 15px);
     width: 100%;
   }
-  .lb-rank { color: #4ade80; font-weight: 800; font-size: 1.15em; }
   #lbName {
     font: inherit;
     width: 4.5em;
@@ -493,7 +613,7 @@
       <div class="value" id="bestEl">0</div>
     </div>
     <div class="stat level">
-      <div class="label">速度等级 <span id="tpsEl">8.5/s</span></div>
+      <div class="label">速度等级 <span id="tpsEl">5.0/s</span></div>
       <div class="value">Lv.<span id="levelEl">1</span></div>
       <div class="speed-track"><div class="speed-fill" id="speedFill"></div></div>
     </div>
@@ -531,11 +651,11 @@
     COLS: 24,                 // 棋盘列数
     ROWS: 24,                 // 棋盘行数（与列数相等，保证画布为正方形）
     START_LEN: 3,             // 初始蛇长
-    BASE_TPS: 4.25,           // 初始速度：每秒推进 4.25 格（难度调低：原 8.5 减半）
-    MAX_TPS: 10,              // 速度上限：每秒 10 格（原 20 减半）
-    TPS_PER_LEVEL: 0.575,     // 每提升一个等级增加的格/秒（原 1.15 减半，升级更缓）
+    BASE_TPS: 5,              // 初始速度：每秒推进 5 格
+    MAX_TPS: 16,              // 速度上限：每秒 16 格
+    TPS_PER_LEVEL: 1.15,      // 每提升一个等级增加的格/秒
     SCORE_PER_FOOD: 10,       // 每颗食物得分
-    SCORE_PER_LEVEL: 100,     // 每 100 分（10 颗食物）提升一个速度等级（升级变慢：原 50）
+    SCORE_PER_LEVEL: 100,     // 每 100 分（10 颗食物）提升一个速度等级
     MAX_QUEUED_DIRS: 3,       // 方向缓冲队列最大长度
     MAX_STEPS_PER_FRAME: 4,   // 单帧最多补算的 tick 数，防止卡顿后瞬移
     STORAGE_BEST: 'snake-game.best.v1',
@@ -1011,6 +1131,9 @@
 
   /* ============================================================
    * 7. 渲染器（只负责画，不修改游戏状态）
+   *    性能要点：背景/网格/墙烘焙到离屏 canvas（只在 resize 时重画），
+   *             每帧只 drawImage 复用，省掉 createRadialGradient 与
+   *             24x2 网格线 stroke 的开销。
    * ========================================================== */
   const Renderer = {
     canvas: null,
@@ -1018,6 +1141,10 @@
     size: 360,
     cell: 15,
     dpr: 1,
+    bgCanvas: null,           // 离屏烘焙：背景 + 网格 + 墙
+    bgCanvasCtx: null,
+    bgValid: false,           // false 时需要重画（resize / 切背景色时清）
+    pulseTime: 0,             // 上次记录的脉冲时间，用于脉冲未变时跳帧
 
     init: function (canvas) {
       this.canvas = canvas;
@@ -1042,6 +1169,32 @@
       this.canvas.width = Math.floor(size * this.dpr);
       this.canvas.height = Math.floor(size * this.dpr);
       this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+
+      this.invalidateBg();
+    },
+
+    /** 标记背景离屏画布失效（resize 后调用，下次 render 时重画） */
+    invalidateBg: function () {
+      this.bgValid = false;
+    },
+
+    /** 一次性把背景/网格/墙画到离屏 canvas（窗口大小变化才重画） */
+    bakeBackground: function () {
+      const size = this.size;
+      if (!this.bgCanvas) {
+        this.bgCanvas = document.createElement('canvas');
+        this.bgCanvasCtx = this.bgCanvas.getContext('2d');
+      }
+      this.bgCanvas.width = Math.floor(size * this.dpr);
+      this.bgCanvas.height = Math.floor(size * this.dpr);
+      const bctx = this.bgCanvasCtx;
+      bctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+
+      this._drawBackgroundOnto(bctx, size);
+      this._drawGridOnto(bctx, size);
+      this._drawWallOnto(bctx, size);
+
+      this.bgValid = true;
     },
 
     /** 格子坐标 -> 画布像素（格子中心） */
@@ -1051,10 +1204,14 @@
     /**
      * 主绘制入口
      * @param {number} alpha tick 之间的插值系数 [0,1]
+     * @param {number} time 用于脉动等纯时间动画
      */
-    render: function (alpha) {
+    render: function (alpha, time) {
       const ctx = this.ctx;
       const size = this.size;
+
+      // 首次/失效时烘焙背景
+      if (!this.bgValid) this.bakeBackground();
 
       ctx.save();
       ctx.clearRect(0, 0, size, size);
@@ -1065,9 +1222,9 @@
         ctx.translate((Math.random() * 2 - 1) * amp, (Math.random() * 2 - 1) * amp);
       }
 
-      this.drawBackground();
-      this.drawGrid();
-      this.drawWall();
+      // 静态层：drawImage 复用离屏烘焙（最贵的 radialGradient + 网格线 + 墙阴影只画一次）
+      ctx.drawImage(this.bgCanvas, 0, 0, size, size);
+
       this.drawFood();
       this.drawSnake(alpha);
       this.drawParticles();
@@ -1076,10 +1233,8 @@
       ctx.restore();
     },
 
-    /** 画布底色 + 中心柔光 */
-    drawBackground: function () {
-      const ctx = this.ctx;
-      const size = this.size;
+    /** 静态底色 + 中心柔光（仅在离屏烘焙时调用） */
+    _drawBackgroundOnto: function (ctx, size) {
       ctx.fillStyle = '#0b1220';
       ctx.fillRect(-size, -size, size * 3, size * 3);
 
@@ -1091,25 +1246,20 @@
       ctx.fillRect(0, 0, size, size);
     },
 
-    /** 网格线：细线 + 每 4 格的粗线，区分度更清晰 */
-    drawGrid: function () {
-      const ctx = this.ctx;
+    /** 网格线：细线 + 每 4 格的粗线（仅在离屏烘焙时调用） */
+    _drawGridOnto: function (ctx, size) {
       const cell = this.cell;
-      const size = this.size;
-
       ctx.lineWidth = 1;
       for (let i = 1; i < Config.COLS; i++) {
         const p = Math.round(i * cell) + 0.5;
         ctx.strokeStyle = (i % 4 === 0) ? 'rgba(148,163,184,0.10)' : 'rgba(148,163,184,0.045)';
         ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, size); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(size, p); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(0 + size, p); ctx.stroke();
       }
     },
 
-    /** 墙壁：内发光描边，与网格明显区分 */
-    drawWall: function () {
-      const ctx = this.ctx;
-      const size = this.size;
+    /** 墙壁：内发光描边（仅在离屏烘焙时调用） */
+    _drawWallOnto: function (ctx, size) {
       const inset = 2;
 
       ctx.save();
@@ -1127,6 +1277,11 @@
       roundRect(ctx, 6.5, 6.5, size - 13, size - 13, 8);
       ctx.stroke();
     },
+
+    // 兼容旧调用名（部分测试可能还在用）
+    drawBackground: function () { this.invalidateBg(); },
+    drawGrid: function () { /* 已在 bakeBackground 中烘焙 */ },
+    drawWall: function () { /* 已在 bakeBackground 中烘焙 */ },
 
     /** 食物：带果梗、叶片与呼吸光环的苹果 */
     drawFood: function () {
@@ -1481,11 +1636,14 @@
         if (rec) {
           const rank = Leaderboard.rank(rec.score);
           const total = Leaderboard.count();
+          const medalCls = rank === 1 ? 'gold' : rank === 2 ? 'silver' : rank === 3 ? 'bronze' : '';
+          const medalIcon = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '#';
           lbHtml =
             '<div class="lb-current">' +
-              '<span>你的名次：</span>' +
-              '<span class="lb-rank">#' + rank + '</span>' +
-              '<span>/ 共 ' + total + ' 条</span>' +
+              '<div class="rank-badge ' + medalCls + '">' +
+                '<span class="medal">' + medalIcon + '</span>' +
+                '<span class="rank-num">第 ' + rank + ' / ' + total + ' 名</span>' +
+              '</div>' +
             '</div>' +
             '<div class="lb-current">' +
               '<input id="lbName" type="text" maxlength="3" value="' + escapeHtml(rec.name) + '" readonly placeholder="Ply">' +
@@ -1494,13 +1652,20 @@
             '</div>';
         }
 
+        // 蛇长 = 初始长度 + 吃到的食物数
+        const snakeLen = Game.snake.length;
+        // 速度等级 = Game.level + 1（UI 上从 1 开始计数）
+        const speedLv = Game.level + 1;
+        const tpsVal = Game.tps().toFixed(1);
+
         html =
           '<div class="tag amber">GAME OVER</div>' +
           '<h2>' + title + '</h2>' +
           (Game.isRecord ? '<div class="record-badge">★ 新纪录</div>' : '') +
-          '<div class="scores">' +
-            '<div class="box cur"><div class="k">本局得分</div><div class="v">' + Game.score + '</div></div>' +
-            '<div class="box bst"><div class="k">最高分</div><div class="v">' + Game.best + '</div></div>' +
+          '<div class="go-stats">' +
+            '<div class="cell score"><div class="k">本局得分</div><div class="v">' + Game.score + '</div></div>' +
+            '<div class="cell len"><div class="k">蛇身长度</div><div class="v">' + snakeLen + '</div></div>' +
+            '<div class="cell speed"><div class="k">最快速度</div><div class="v">Lv.' + speedLv + '<small>·' + tpsVal + '/s</small></div></div>' +
           '</div>' +
           '<p class="desc">' + reason + '</p>' +
           lbHtml +
@@ -1561,15 +1726,24 @@
 
     /** 开始屏排行榜区块：Top 10 列表 + 清空入口 */
     renderLeaderboardBlock: function () {
+      const self = Leaderboard.lastRecord;
+      // 用于高亮"自己"行：与 lastRecord 同名 + 同分的最新记录视为"自己"
+      const selfKey = self ? (self.name + '|' + self.score) : null;
+
       let rows = '';
       if (Leaderboard.entries.length === 0) {
         rows = '<li class="lb-empty">暂无记录</li>';
       } else {
         for (let i = 0; i < Leaderboard.entries.length; i++) {
           const e = Leaderboard.entries[i];
+          const rank = i + 1;
+          const topCls = rank <= 3 ? ' is-top' + rank : '';
+          const key = e.name + '|' + e.score;
+          const selfCls = (selfKey && key === selfKey) ? ' is-self' : '';
+          const rankIcon = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
           rows +=
-            '<li>' +
-              '<span class="lb-ranknum">' + (i + 1) + '</span>' +
+            '<li class="' + topCls + selfCls + '">' +
+              '<span class="lb-ranknum">' + rankIcon + '</span>' +
               '<span class="lb-name">' + escapeHtml(e.name) + '</span>' +
               '<span class="lb-score">' + e.score + '</span>' +
               '<span class="lb-meta">' + formatLbDate(e.date) + ' · ' + formatLbDuration(e.duration) + '</span>' +
@@ -1818,6 +1992,7 @@
       this.running = true;
       this.boundFrame = this.frame.bind(this);
       this.lastTime = performance.now();
+      this._hasRendered = false;
       requestAnimationFrame(this.boundFrame);
     },
 
@@ -1911,12 +2086,22 @@
     /**
      * 主循环：requestAnimationFrame + 时间累加器，固定步长推进逻辑，
      * 渲染每帧进行，并用 acc/interval 做插值让移动更顺滑。
+     *
+     * 节流策略（保持 60fps 体感但省电）：
+     *   - PLAYING 态：每帧都渲染（食物呼吸、震屏等需要连续）
+     *   - 非 PLAYING 且无任何动画（粒子/飘字/震屏/呼吸/未生效的蛇身插值）：
+     *     强制跳到下一个 ≥33ms 的帧再渲染（≈30fps 上限），浏览器 tab 切回时
+     *     仍立即补一帧避免黑屏
+     *   - 离屏烘焙后的静态层每帧只 drawImage，不重算 gradient
      */
     frame: function (now) {
       let dt = (now - this.lastTime) / 1000;
       this.lastTime = now;
       if (!isFinite(dt) || dt < 0) dt = 0;
       if (dt > 0.25) dt = 0.25;   // 切后台回来后不要一次性补算
+
+      let needRender = true;
+      let renderAlpha = this.alpha;
 
       if (Game.state === STATE.PLAYING) {
         const interval = Game.tickInterval();
@@ -1969,10 +2154,29 @@
         if (Game.state === STATE.PLAYING) {
           this.alpha = Math.max(0, Math.min(1, this.accumulator / intervalNow));
         }
+        renderAlpha = this.alpha;
+      } else {
+        // 非 PLAYING 态：累加器/alpha 保持不变（暂停时不清，resume 时再清），
+        // 这样切到后台再回来时不会因为长时间 dt 累加而触发补算。
+        // 节流：没有任何动画时降到 30fps，省 CPU
+        renderAlpha = 0;
+        const animating =
+          Fx.particles.length > 0 ||
+          Fx.floaters.length > 0 ||
+          Fx.shake > 0 ||
+          Game.headPulse > 0;
+        if (!animating && this._hasRendered) {
+          const sinceLast = now - (this._lastRenderTs || 0);
+          if (sinceLast < 33) needRender = false;
+        }
+        this._hasRendered = true;
       }
 
-      Fx.update(dt);
-      Renderer.render(this.alpha);
+      if (needRender) {
+        Fx.update(dt);
+        Renderer.render(renderAlpha, Fx.time);
+        this._lastRenderTs = now;
+      }
 
       requestAnimationFrame(this.boundFrame);
     }

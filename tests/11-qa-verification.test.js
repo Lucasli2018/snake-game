@@ -8,7 +8,7 @@
  *   3. Top 10 截断（15 条随机分数）
  *   5. 改名交互（中文名 + 名次随分数更新）
  *   7. localStorage 兜底（score 为字符串 / 缺字段 / 缺日期 脏数据）
- *   8. 速度维持原值（明确反证不是 6.0/0.8/14）
+ *   8. 速度调整：BASE_TPS=5 / TPS_PER_LEVEL=1.15 / MAX_TPS=16
  *  10. 状态机耦合（GameOver→自动入榜→改名→重开，名字不跨局）
  *
  * 关于「不重叠」的证明方法：headless harness 没有布局引擎，无法真正量测像素。
@@ -76,8 +76,8 @@ test('11.1 三屏内层全部走文档流：flex 列 + gap，无冗余绝对定�
   assert.ok(/\.panel\s*\{[^}]*flex-direction:\s*column/.test(css), 'panel 应为 flex 列');
   assert.ok(/\.panel\s*\{[^}]*gap:\s*clamp\(8px,\s*2\.2cqw,\s*14px\)/.test(css), 'panel gap 应为 clamp(8,2.2cqw,14)');
 
-  // scores：横向 flex + gap
-  assert.ok(/\.scores\s*\{[^}]*display:\s*flex/.test(css), 'scores 应为 flex 布局');
+  // go-stats：三格统计网格
+  assert.ok(/\.go-stats\s*\{[^}]*display:\s*grid/.test(css), 'go-stats 应为 grid 布局');
 
   // 全文件只允许 .overlay 一处 position:absolute（覆盖画布），内层不得出现
   const abs = css.match(/position:\s*absolute/g) || [];
@@ -89,8 +89,8 @@ test('11.2 三屏关键字号均用相对单位 cqw（无硬编码 px 作为实�
   const css = styleText();
   const checks = [
     ['.panel h2',        /\.panel\s+h2\s*\{[^}]*font-size:\s*clamp\(24px,\s*7cqw,\s*40px\)/],
-    ['.scores .box .v',  /\.scores\s+\.box\s+\.v\s*\{[^}]*font-size:\s*clamp\(18px,\s*4\.8cqw,\s*28px\)/],
-    ['.scores .k',       /\.scores\s+\.box\s+\.k\s*\{[^}]*font-size:\s*clamp\(10px,\s*2\.2cqw,\s*12px\)/],
+    ['.go-stats .v',       /\.go-stats\s+\.v\s*\{[^}]*font-size:\s*clamp\(16px,\s*4\.2cqw,\s*24px\)/],
+    ['.go-stats .k',       /\.go-stats\s+\.k\s*\{[^}]*font-size:\s*clamp\(10px,\s*2\.2cqw,\s*12px\)/],
     ['.panel .desc',     /\.panel\s+\.desc\s*\{[^}]*font-size:\s*clamp\(12px,\s*3cqw,\s*15px\)/],
     ['.btn',             /\.btn\s*\{[^}]*font-size:\s*clamp\(14px,\s*3\.5cqw,\s*16px\)/],
     ['.tag',             /\.tag\s*\{[^}]*font-size:\s*clamp\(10px,\s*2\.4cqw,\s*12px\)/],
@@ -130,11 +130,12 @@ test('11.4 构造「999 分 + 3 字符名」GameOver：结构线性、无内联�
   rename(h, 'ABC'); // 3 字符名
   const html = h.els.get('panel').innerHTML;
 
-  // 文本证据：标题、分数、改名输入框值
+  // 文本证据：标题、分数、改名输入框值、三格统计
   assert.ok(html.includes('游戏结束'), '应有「游戏结束」标题');
   assert.ok(html.includes('999'), '应显示本局得分 999');
   assert.ok(html.includes('value="ABC"'), '改名输入框应为 3 字符名 ABC');
-  assert.ok(html.includes('本局得分') && html.includes('最高分'), '应显示两栏分数盒');
+  assert.ok(html.includes('本局得分') && html.includes('蛇身长度') && html.includes('最快速度'),
+    '应显示三格统计：本局得分/蛇身长度/最快速度');
 
   // 结构证据 1：无任何内联 position（纯文档流）
   assert.ok(!/position\s*:/.test(html), '面板内不得出现内联绝对定位');
@@ -236,15 +237,15 @@ test('11.9 结束屏改名为中文名，写入正确且面板同步重渲', () 
   assert.strictEqual(readLb(h)[0].name, '玩蛇', '2 字符中文名应被接受');
 });
 
-test('11.10 改名后排行榜名次随当前分数正确计算（#名次）', () => {
+test('11.10 改名后排行榜名次随当前分数正确计算', () => {
   const h = H.createHarness();
   dieWithScore(h, 50);                 // Ply/50 -> rank #1
   dieWithScore(h, 30);                 // Ply/30 -> rank #2 / 共 2 条
   const before = h.els.get('panel').innerHTML;
-  assert.ok(/lb-rank">#2/.test(before), '30 分在 50 分之后应为 #2');
+  assert.ok(/第\s*2\s*\/\s*2\s*名/.test(before), '30 分在 50 分之后应为「第 2 / 2 名」');
   rename(h, '蛇');                     // 改名不影响分数，名次保持 #2
   const after = h.els.get('panel').innerHTML;
-  assert.ok(/lb-rank">#2/.test(after), '改名后名次仍正确为 #2');
+  assert.ok(/第\s*2\s*\/\s*2\s*名/.test(after), '改名后名次仍正确为「第 2 / 2 名」');
   assert.ok(after.includes('value="蛇"'), '面板应显示新名');
 });
 
@@ -280,30 +281,30 @@ test('11.12 脏数据：缺字段（无 score / 无 date）不崩且被合理归
 });
 
 /* ================================================================== *
- * 8. 速度维持原值（明确反证不是 6.0/0.8/14）
+ * 8. 速度调整后：BASE_TPS=5 / TPS_PER_LEVEL=1.15 / MAX_TPS=16
  * ================================================================== */
 
-test('11.13 速度常量按难度调整：BASE_TPS=4.25 / TPS_PER_LEVEL=0.575 / MAX_TPS=10', () => {
+test('11.13 速度常量按设计：BASE_TPS=5 / TPS_PER_LEVEL=1.15 / MAX_TPS=16', () => {
   const c = H.createHarness().Config;
-  assert.strictEqual(c.BASE_TPS, 4.25, 'BASE_TPS 必须是 4.25（速度减半）');
-  assert.notStrictEqual(c.BASE_TPS, 6.0, '不得是降速值 6.0');
-  assert.strictEqual(c.TPS_PER_LEVEL, 0.575, 'TPS_PER_LEVEL 必须是 0.575（每级增量减半）');
-  assert.notStrictEqual(c.TPS_PER_LEVEL, 0.8, '不得是降速值 0.8');
-  assert.strictEqual(c.MAX_TPS, 10, 'MAX_TPS 必须是 10（上限减半）');
-  assert.notStrictEqual(c.MAX_TPS, 14, '不得是降速上限 14');
+  assert.strictEqual(c.BASE_TPS, 5, 'BASE_TPS 必须是 5（起始速度）');
+  assert.notStrictEqual(c.BASE_TPS, 4.25, '不得是之前的 4.25 慢速');
+  assert.strictEqual(c.TPS_PER_LEVEL, 1.15, 'TPS_PER_LEVEL 必须是 1.15（每级增量）');
+  assert.notStrictEqual(c.TPS_PER_LEVEL, 0.575, '不得是之前的 0.575 慢增量');
+  assert.strictEqual(c.MAX_TPS, 16, 'MAX_TPS 必须是 16（速度上限）');
+  assert.notStrictEqual(c.MAX_TPS, 10, '不得是之前的 10 慢上限');
 
-  // 曲线端到端：level 递增单调上升且触顶 10
+  // 曲线端到端：level 递增单调上升且触顶 16
   const g = H.createHarness().Game;
   let prev = -1;
   for (let lv = 0; lv <= 30; lv++) {
     g.level = lv;
     const t = g.tps();
     assert.ok(t >= prev - 1e-9, `level ${lv} 速度不应下降`);
-    assert.ok(t <= 10 + 1e-9, `level ${lv} 速度不应超 10`);
+    assert.ok(t <= 16 + 1e-9, `level ${lv} 速度不应超 16`);
     prev = t;
   }
   g.level = 999;
-  assert.strictEqual(g.tps(), 10, '高等级应触顶 10');
+  assert.strictEqual(g.tps(), 16, '高等级应触顶 16');
 });
 
 /* ================================================================== *

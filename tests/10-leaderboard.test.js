@@ -6,7 +6,7 @@
  *   - localStorage 键 snake-leaderboard，最多 10 条，[{name,score,date,duration}]
  *   - 同名同分视为同记录（替换并保留最新时间）
  *   - 分数降序排序 + Top10 截断
- *   - 结束屏显示「你的名次：#X / 共 Y 条」与改名输入框（默认 Ply，≤3 字符）
+ *   - 结束屏显示「第 N / M 名」名次徽章与改名输入框（默认 Ply，≤3 字符）
  *   - 开始屏 Top10 列表（空榜「暂无记录」）+ 清空按钮（5 秒二次确认倒计时）
  *   - 暂停屏不含排行榜
  *   - 脏数据 / 隐私模式 / 写入被拒绝 兜底不崩溃
@@ -64,14 +64,14 @@ test('10.1 开始屏空榜：显示「排行榜 TOP 10」「暂无记录」和�
   assert.strictEqual(h.UI.lbClearArmed, false, '未点击时不应处于确认态');
 });
 
-test('10.2 结束屏：提交成绩后显示「你的名次」与改名输入框', () => {
+test('10.2 结束屏：提交成绩后显示「名次徽章」与改名输入框', () => {
   const h = H.createHarness();
   assert.ok(dieWithScore(h, 80), '应进入 gameover');
   const html = h.els.get('panel').innerHTML;
-  assert.ok(html.includes('你的名次'), '应显示名次提示');
+  assert.ok(html.includes('rank-badge'), '应显示名次徽章');
+  assert.ok(html.includes('第 1') && html.includes('1 名'), '应显示「第 1 / 1 名」');
   assert.ok(html.includes('id="lbName"'), '应有改名输入框');
   assert.ok(html.includes('id="lbEdit"'), '应有「改名」按钮');
-  assert.ok(html.includes('共'), '应显示总条数');
 });
 
 test('10.3 暂停屏：不含任何排行榜元素', () => {
@@ -140,9 +140,9 @@ test('10.8 结束屏名次与总条数正确（高分在前）', () => {
   dieWithScore(h, 50);
   dieWithScore(h, 30); // 第二次死的 lastRecord=30，名次应为 #2 / 共 2 条
   const html = h.els.get('panel').innerHTML;
-  assert.ok(html.includes('你的名次'), '应显示名次提示');
-  assert.ok(html.includes('lb-rank">#2'), '30 分在 50 分之后的名次应为 #2');
-  assert.ok(html.includes('共 2 条'), '总条数应为 2');
+  assert.ok(html.includes('rank-badge'), '应显示名次徽章');
+  assert.ok(html.includes('第 2') && html.includes('2 名'), '30 分在 50 分之后应为「第 2 名」');
+  assert.ok(/\/\s*2\s*名/.test(html), '总条数应为 2');
 });
 
 test('10.24 同名不同分视为不同记录，均保留', () => {

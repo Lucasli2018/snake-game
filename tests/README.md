@@ -14,8 +14,8 @@ cd tests && node --test
 ## 当前结果
 
 ```
-# tests 129
-# pass  129
+# tests 167
+# pass  167
 # fail    0
 ```
 
@@ -44,11 +44,13 @@ cd tests && node --test
 | `02-food.test.js` | 食物生成：5000 次随机零重叠、满盘兜底、哈密顿路径验证通关分支可达 |
 | `03-collision.test.js` | 碰撞判定：四面墙、咬自己、追尾合法、死因文案、3 万步一致性 |
 | `04-pause-resume.test.js` | 暂停恢复与累加器：dt clamp、visibilitychange/blur、单帧步数上限 |
-| `05-speed-curve.test.js` | 速度曲线：`min(4.25+0.575L, 10)` 单调性与上限、每 100 分升级 |
+| `05-speed-curve.test.js` | 速度曲线：`min(5+1.15L, 16)` 单调性与上限（level 9=15.35、level 10 触顶 16）、每 100 分升级 |
 | `06-storage.test.js` | localStorage 兜底：undefined / 抛异常 / 脏数据 |
 | `07-static.test.js` | 静态检查：零外链、无 console、语法、标签配平 |
 | `08-integration.test.js` | 集成压力：2 万帧真实主循环、resize、音效、触摸、插值自洽 |
 | `09-fix-regression.test.js` | 修复回归：P1 空格暂停、P2 累加器封顶、P3a 蛇头朝向兜底；含一条脚手架自身正确性用例（`09.4`） |
+| `10-leaderboard.test.js` | 排行榜：三屏渲染 / 入榜 / 排序 / 改名 / 清空二次确认 / 隐私模式 |
+| `11-qa-verification.test.js` | QA 独立验证：UI 重排结构、脏数据兜底、状态机耦合、速度常量反证 |
 
 ## 设计说明
 

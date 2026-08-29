@@ -3,7 +3,7 @@
  *
  * 05 - 速度曲线与升级阈值
  * 覆盖：
- *   - tps = min(4.25 + level*0.575, 10) 单调递增、有上限、有下限
+ *   - tps = min(5 + level*1.15, 16) 单调递增、有上限、有下限
  *   - tickInterval 单调递减
  *   - level = floor(score / 100)，每 100 分（10 颗食物）升一级
  *   - 连续吃 10 颗食物时每 10 颗升一级
@@ -42,15 +42,15 @@ test('05.1 Config 常量与设计一致', () => {
   const c = h.Config;
   assert.strictEqual(c.COLS, 24);
   assert.strictEqual(c.ROWS, 24, 'ROWS 应等于 COLS，画布才是正方形');
-  assert.strictEqual(c.BASE_TPS, 4.25);
-  assert.strictEqual(c.MAX_TPS, 10);
-  assert.strictEqual(c.TPS_PER_LEVEL, 0.575);
+  assert.strictEqual(c.BASE_TPS, 5);
+  assert.strictEqual(c.MAX_TPS, 16);
+  assert.strictEqual(c.TPS_PER_LEVEL, 1.15);
   assert.strictEqual(c.SCORE_PER_FOOD, 10);
   assert.strictEqual(c.SCORE_PER_LEVEL, 100);
   assert.strictEqual(c.SCORE_PER_LEVEL / c.SCORE_PER_FOOD, 10, '每 10 颗食物升一级');
 });
 
-test('05.2 tps 随 level 单调不减，且恒在 [4.25, 10] 区间内', () => {
+test('05.2 tps 随 level 单调不减，且恒在 [5, 16] 区间内', () => {
   const h = H.createHarness();
   const g = h.Game;
   let prev = -Infinity;
@@ -59,17 +59,17 @@ test('05.2 tps 随 level 单调不减，且恒在 [4.25, 10] 区间内', () => {
     const t = g.tps();
     assert.ok(t >= prev, `level ${level} 时 tps ${t} 低于上一级 ${prev}，非单调`);
     assert.ok(t >= h.Config.BASE_TPS - 1e-9, `level ${level}：tps ${t} 低于下限`);
-    assert.ok(t <= h.Config.MAX_TPS + 1e-9, `level ${level}：tps ${t} 超过上限 10`);
+    assert.ok(t <= h.Config.MAX_TPS + 1e-9, `level ${level}：tps ${t} 超过上限 16`);
     prev = t;
   }
 });
 
-test('05.3 tps 严格等于 min(4.25 + level*0.575, 10)', () => {
+test('05.3 tps 严格等于 min(5 + level*1.15, 16)', () => {
   const h = H.createHarness();
   const g = h.Game;
   for (let level = 0; level <= 60; level++) {
     g.level = level;
-    const expected = Math.min(10, 4.25 + level * 0.575);
+    const expected = Math.min(16, 5 + level * 1.15);
     assert.ok(Math.abs(g.tps() - expected) < 1e-9,
       `level ${level}：tps=${g.tps()}，期望 ${expected}`);
   }
@@ -79,16 +79,19 @@ test('05.4 速度上限在 level 10 触顶，之后不再增长', () => {
   const h = H.createHarness();
   const g = h.Game;
 
+  // level 9 时 tps = 5 + 9*1.15 = 15.35 < 16
   g.level = 9;
   const t9 = g.tps();
-  assert.ok(t9 < 10, `level 9 尚未触顶（${t9}）`);
+  assert.ok(t9 < 16, `level 9 尚未触顶（${t9}）`);
+  assert.ok(Math.abs(t9 - 15.35) < 1e-9, `level 9 应为 15.35，实际 ${t9}`);
 
+  // level 10 时 tps = 5 + 10*1.15 = 16.5，被 cap 截到 16
   g.level = 10;
-  assert.ok(Math.abs(g.tps() - 10) < 1e-9, `level 10 应恰好触顶 10，实际 ${g.tps()}`);
+  assert.ok(Math.abs(g.tps() - 16) < 1e-9, `level 10 应恰好触顶 16，实际 ${g.tps()}`);
 
   for (const lv of [11, 20, 50, 100, 999]) {
     g.level = lv;
-    assert.ok(Math.abs(g.tps() - 10) < 1e-9, `level ${lv} 时 tps 应保持 10，实际 ${g.tps()}`);
+    assert.ok(Math.abs(g.tps() - 16) < 1e-9, `level ${lv} 时 tps 应保持 16，实际 ${g.tps()}`);
   }
 });
 
@@ -104,9 +107,9 @@ test('05.5 tickInterval = 1000/tps，随等级单调递减', () => {
     assert.ok(iv > 0 && Number.isFinite(iv), `level ${level}：interval 非法 ${iv}`);
     prev = iv;
   }
-  // 最快 10 格/秒 -> 100ms 一步
+  // 最快 16 格/秒 -> 62.5ms 一步
   g.level = 999;
-  assert.strictEqual(g.tickInterval(), 100);
+  assert.strictEqual(g.tickInterval(), 62.5);
 });
 
 /* ================================================================== *
@@ -172,7 +175,7 @@ test('05.9 达到 level 10 约需 1000 分（100 颗食物），与 README 描�
   feedOnce(h);
   assert.strictEqual(g.score, 1000);
   assert.strictEqual(g.level, 10);
-  assert.ok(Math.abs(g.tps() - 10) < 1e-9, '1000 分时速度应已触顶 10 格/秒');
+  assert.ok(Math.abs(g.tps() - 16) < 1e-9, '1000 分时速度应已触顶 16 格/秒');
 });
 
 /* ================================================================== *
@@ -182,7 +185,7 @@ test('05.10 HUD 显示的等级、速度、进度条与内部状态一致', () =
   const h = H.createHarness();
   const g = h.Game;
 
-  for (const level of [0, 1, 5, 10, 20]) {
+  for (const level of [0, 1, 5, 9, 10, 20]) {
     g.level = level;
     h.UI.updateHud();
     assert.strictEqual(h.els.get('levelEl').textContent, String(level + 1),
@@ -228,10 +231,15 @@ test('05.12 速度曲线端到端：等级越高，同样时长内推进的 tick
   }
   const t0 = ticksInOneSecond(0);
   const t5 = ticksInOneSecond(5);
+  const t9 = ticksInOneSecond(9);
   const t20 = ticksInOneSecond(20);
 
-  assert.ok(t0 >= 4 && t0 <= 5, `level 0 一秒应约 4~5 步，实际 ${t0}`);
+  // level 0 (5 tps) 一秒应约 4~6 步（受帧率抖动 ±1）
+  assert.ok(t0 >= 4 && t0 <= 6, `level 0 一秒应约 4~6 步，实际 ${t0}`);
   assert.ok(t5 > t0, `level 5 应比 level 0 快（${t5} vs ${t0}）`);
-  assert.ok(t20 > t5, `level 20 应比 level 5 快（${t20} vs ${t5}）`);
-  assert.ok(t20 <= 10, `level 20 一秒最多 10 步，实际 ${t20}`);
+  assert.ok(t9 > t5, `level 9 应比 level 5 快（${t9} vs ${t5}）`);
+  assert.ok(t20 >= t9, `level 20 应不慢于 level 9（${t20} vs ${t9}）`);
+  // level 20 已触顶 16 tps，1 秒最多 16 步；考虑累加器封顶 4 步/帧 * 60 帧 = 240 步上限，
+  // 实际受 dt=0.25s 钳制，每秒 16 步 ≈ 1秒精确区间，留余量
+  assert.ok(t20 <= 18, `level 20 一秒最多 18 步（16 tps + 抖动），实际 ${t20}`);
 });

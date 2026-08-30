@@ -41,9 +41,17 @@ test('07.2 不含协议相对外链（//cdn... 之类）', () => {
   assert.deepStrictEqual(hits, [], `发现协议相对外链：${JSON.stringify(hits)}`);
 });
 
-test('07.3 没有带外链的 src= / href=（src="..." 只能引用 data: 或留空）', () => {
+test('07.3 没有带外链的 src= / href=（src="..." 只能引用 data:、空、锚点或相对路径）', () => {
   const attrs = HTML.match(/\b(?:src|href)\s*=\s*["'][^"']*["']/gi) || [];
-  const external = attrs.filter((a) => !/=\s*["']\s*["']/.test(a) && !/data:/i.test(a) && !/^#/.test(a));
+  // 允许：空值、data: URI、锚点 (#...)、相对路径（如 index.html、./foo、../bar）
+  // 拒绝：http(s):// 与 // 协议相对外链（CDN/远程资源）
+  const external = attrs.filter((a) => {
+    const m = a.match(/=\s*["']([^"']*)["']/);
+    if (!m) return false;
+    const v = m[1];
+    if (v === '' || /^data:/i.test(v) || v.startsWith('#')) return false;
+    return /^https?:\/\//i.test(v) || v.startsWith('//');
+  });
   assert.deepStrictEqual(external, [], `发现外部资源属性：${JSON.stringify(external)}`);
 });
 

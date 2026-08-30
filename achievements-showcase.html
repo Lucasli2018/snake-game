@@ -94,7 +94,7 @@
     <h1><span class="star">★</span> 暗夜贪吃蛇 · 成就系统</h1>
     <div class="sub">G 轮「模式与长线」落地 · 数据源自 <code>index.html</code> 真实实现</div>
     <div class="stats">
-      <div class="stat"><b>12</b><span>成就总数</span></div>
+      <div class="stat"><b id="statUnlocked">0</b><span>已解锁 / 12</span></div>
       <div class="stat"><b>5</b><span>皮肤（含默认）</span></div>
       <div class="stat"><b>6</b><span>关卡模式</span></div>
       <div class="stat"><b>1</b><span>成就→皮肤联动</span></div>
@@ -123,7 +123,7 @@
     <div class="arch">
       <div>· <b>定义</b>：<code>ACHIEVEMENTS</code> 数组集中维护 12 项（id / name / desc），是单一事实来源。</div>
       <div>· <b>判定</b>：<code>Game.checkAchievements()</code> 在每局结束（<code>gameOver()</code>）时统一扫描所有条件——单局得分、最高连击、Boss 击破、通关、限时奖励、速度、蛇长、累计局数。</div>
-      <div>· <b>存储</b>：<code>Achievements.unlock(id)</code> 写入 <code>{ 成就id: 时间戳 }</code> 到 localStorage；脏数据自动降级为空进度，绝不抛异常。</div>
+      <div>· <b>存储</b>：<code>Achievements.unlock(id)</code> 写入 <code>{ 成就id: 时间戳 }</code> 到 <code>localStorage['snake-achievements.v1']</code>；本页直接读取该键，脏数据自动降级为空进度，绝不抛异常。</div>
       <div>· <b>反馈</b>：新解锁时 <code>showAchievement(id)</code> 弹出右上角滑入提示 + 音效；重复解锁不重复弹窗。</div>
       <div class="muted">· 关键红线：<code>first（完成第一局）</code> 依赖累计数据，必须等 <code>Stats.merge</code> 之后再判定，否则「完成第一局」永不解锁。</div>
     </div>
@@ -158,12 +158,33 @@ const SKINS = [
 
 const CAT_LABEL = {score:'计分',combo:'连击',boss:'战斗',progress:'进度',skill:'技巧/运气'};
 
+/** 从 index.html 的真实 localStorage 读取已解锁成就 */
+function loadUnlocked(){
+  const set = new Set();
+  try {
+    const raw = window.localStorage.getItem('snake-achievements.v1');
+    if (!raw) return set;
+    const data = JSON.parse(raw);
+    if (!data || typeof data !== 'object') return set;
+    Object.keys(data).forEach(id => {
+      // 存档格式：{ 成就id: 时间戳 }；值为真且 ID 存在才计入
+      if (data[id] && ACHIEVEMENTS.some(a => a.id === id)) set.add(id);
+    });
+  } catch (e) {
+    // file:// 或禁用 localStorage 时静默降级
+  }
+  return set;
+}
+
 const grid = document.getElementById('grid');
+const unlockedSet = loadUnlocked();
+
 function render(cat){
   grid.innerHTML = '';
   ACHIEVEMENTS.filter(a=>cat==='all'||a.cat===cat).forEach(a=>{
+    const isUnlocked = unlockedSet.has(a.id);
     const d = document.createElement('div');
-    d.className = 'card locked';
+    d.className = isUnlocked ? 'card unlocked' : 'card locked';
     d.innerHTML = `
       <div class="tag">${CAT_LABEL[a.cat]}</div>
       <div class="emblem">★</div>
@@ -174,11 +195,14 @@ function render(cat){
   });
 }
 
-// 演示：点击卡片切换解锁状态（仅展示效果，不影响游戏存档）
-grid.addEventListener('click', e=>{
-  const card = e.target.closest('.card');
-  if(card) card.classList.toggle('unlocked'), card.classList.toggle('locked');
-});
+// 更新顶部统计
+document.getElementById('statUnlocked').textContent = unlockedSet.size;
+
+// 未解锁任何成就时，给顶部加一句提示
+if (unlockedSet.size === 0) {
+  const sub = document.querySelector('.sub');
+  if (sub) sub.innerHTML += ' · <span style="color:var(--gold2)">去玩一局即可点亮星标！</span>';
+}
 
 document.getElementById('filter').addEventListener('click', e=>{
   const chip = e.target.closest('.chip'); if(!chip) return;

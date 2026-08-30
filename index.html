@@ -516,7 +516,7 @@
     background: rgb(8, 15, 31);
     display: flex;
     justify-content: center;
-    align-items: center;
+    align-items: safe center;   /* 内容超出时不裁顶，可滚到顶，避免被遮挡 */
     padding: clamp(8px, 2.2cqw, 18px);
     cursor: pointer;
     text-align: center;
@@ -526,6 +526,88 @@
   }
   .overlay[hidden] { display: none; }
 
+  /* ============================ 玩法指引弹窗 ============================ */
+  .guide-modal {
+    position: absolute;
+    inset: 7px;
+    border-radius: 12px;
+    z-index: 100;
+    display: flex;
+    justify-content: center;
+    align-items: safe center;
+    padding: clamp(8px, 2.2cqw, 18px);
+    container-type: inline-size;
+    animation: fade .18s ease;
+  }
+  .guide-modal[hidden] { display: none; }
+  .guide-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgb(8, 15, 31);
+    border-radius: 12px;
+  }
+  .guide-panel {
+    position: relative;
+    width: 100%;
+    max-width: min(94cqw, 380px);
+    max-height: 100%;
+    min-height: 0;
+    box-sizing: border-box;
+    background: rgb(15, 23, 42);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 14px;
+    padding: clamp(14px, 3.5cqw, 22px);
+    display: flex;
+    flex-direction: column;
+    gap: clamp(10px, 2.4cqw, 14px);
+    text-align: left;
+    animation: pop .22s ease;
+    overflow-y: auto;
+  }
+  .guide-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+  }
+  .guide-panel h3 {
+    margin: 0;
+    font-size: clamp(18px, 5cqw, 26px);
+    color: #f8fafc;
+    flex: 1;
+  }
+  .guide-close {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(148,163,184,0.15);
+    color: #e2e8f0;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background .15s ease;
+    flex-shrink: 0;
+  }
+  .guide-close:hover { background: rgba(148,163,184,0.30); }
+  .guide-body {
+    color: #cbd5e1;
+    font-size: clamp(12px, 3cqw, 15px);
+    line-height: 1.7;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;             /* 内容过长时 body 自身滚动，标题与「知道了」始终可见 */
+  }
+  .guide-body p { margin: 0 0 0.55em; }
+  .guide-body p:last-child { margin-bottom: 0; }
+  .guide-body b { color: #f8fafc; }
+  .guide-body ul { margin: 0; padding-left: 1.2em; }
+  .guide-body li { margin-bottom: 0.35em; }
+  .guide-panel .btn { align-self: center; margin-top: 4px; flex-shrink: 0; }
+
   @keyframes fade { from { opacity: 0 } to { opacity: 1 } }
   @keyframes pop  { from { opacity: 0; transform: translateY(8px) scale(.97) }
                     to   { opacity: 1; transform: none } }
@@ -534,6 +616,10 @@
     color: #f8fafc;
     width: 100%;
     max-width: min(94cqw, 360px);
+    max-height: 100%;            /* 不超出遮罩内容区 */
+    min-height: 0;               /* flex 子项可被压缩，避免最小高度撑破遮罩 */
+    overflow-y: auto;            /* 面板自身滚动，不依赖外部遮罩，避免和 footer/header 打架 */
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -705,6 +791,11 @@
     box-shadow: none;
   }
   .btn.ghost:hover { background: rgba(148,163,184,0.28); }
+  .btn.guide-trigger {
+    font-size: clamp(11px, 2.6cqw, 13px);
+    padding: 0.45em 0.95em;
+    margin-top: -2px;             /* 与标题间距更紧凑 */
+  }
 
   /* 开始屏底部三个入口：排行榜 / 成就 / 好友榜 并排 */
   .btn-row {
@@ -737,11 +828,20 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-wrap: wrap;
+    gap: clamp(6px, 1.5cqw, 10px);
     font-size: clamp(12px, 2.8cqw, 14px);
     font-weight: 800;
     color: #e2e8f0;
     margin-bottom: clamp(6px, 1.5cqw, 10px);
   }
+  .lb-header span {
+    min-width: 0;                 /* 可被压缩，不撑破头部 */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;      /* 空间不足时省略，保证右侧按钮完整 */
+  }
+  .lb-header button { flex-shrink: 0; }
   .lb-list {
     list-style: none;
     padding: 0;
@@ -994,6 +1094,22 @@
     .subtitle { display: none; }
     .footer { display: none; }
   }
+  @media (max-height: 720px) {
+    /* 开始屏内容多：低高度下压缩间距，确保排行榜/成就/好友榜三入口一屏可见 */
+    .panel { gap: clamp(6px, 1.6cqw, 10px); }
+    .panel h2 { font-size: clamp(20px, 5.5cqw, 30px); }
+    .panel .desc { font-size: clamp(10px, 2.4cqw, 12px); margin: 0; }
+    .panel .profile { display: none; }
+    .panel .hint { display: none; }   /* 低高度下底部已有 footer 键盘提示，这里省出空间 */
+    .btn-row { gap: 6px; }
+    .btn-row .btn { padding: 0.55em 0.5em; font-size: clamp(11px, 2.8cqw, 13px); }
+
+    /* 玩法指引弹窗在低高度下压缩，确保关闭按钮与「知道了」一屏可见 */
+    .guide-panel { padding: clamp(10px, 2.8cqw, 16px); gap: 8px; }
+    .guide-panel h3 { font-size: clamp(16px, 4.5cqw, 22px); }
+    .guide-body { font-size: clamp(11px, 2.8cqw, 14px); line-height: 1.55; }
+    .guide-body li { margin-bottom: 0.25em; }
+  }
 </style>
 </head>
 <body>
@@ -1092,6 +1208,19 @@
 
         <div class="overlay" id="overlay">
           <div class="panel" id="panel"></div>
+        </div>
+
+        <!-- 玩法指引弹窗：进入首页自动弹出，可关闭/重新打开 -->
+        <div class="guide-modal" id="guideModal" hidden>
+          <div class="guide-backdrop"></div>
+          <div class="guide-panel">
+            <div class="guide-header">
+              <h3>玩法指引</h3>
+              <button class="guide-close" id="guideClose" type="button" aria-label="关闭">×</button>
+            </div>
+            <div class="guide-body" id="guideBody"></div>
+            <button class="btn" id="guideOk" type="button">知道了</button>
+          </div>
         </div>
       </div>
   </main>
@@ -4015,7 +4144,12 @@
         comboBar: document.getElementById('comboBar'),
         comboMul: document.getElementById('comboMul'),
         comboCnt: document.getElementById('comboCnt'),
-        comboTm: document.getElementById('comboTm')
+        comboTm: document.getElementById('comboTm'),
+        // 玩法指引弹窗
+        guideModal: document.getElementById('guideModal'),
+        guideBody: document.getElementById('guideBody'),
+        guideClose: document.getElementById('guideClose'),
+        guideOk: document.getElementById('guideOk')
       };
 
       this.els.overlay.addEventListener('click', function () {
@@ -4025,6 +4159,29 @@
         if (Game.awaitingUpgrade) return;
         App.primaryAction();
       });
+
+      // 玩法指引弹窗：关闭按钮 / 知道了 / 点背景遮罩关闭
+      const self = this;
+      if (this.els.guideClose) {
+        this.els.guideClose.addEventListener('click', function (e) {
+          e.stopPropagation();
+          self.hideGuide();
+        });
+      }
+      if (this.els.guideOk) {
+        this.els.guideOk.addEventListener('click', function (e) {
+          e.stopPropagation();
+          self.hideGuide();
+        });
+      }
+      if (this.els.guideModal) {
+        this.els.guideModal.addEventListener('click', function (e) {
+          if (e.target === self.els.guideModal || e.target.classList.contains('guide-backdrop')) {
+            self.hideGuide();
+          }
+        });
+      }
+
       this.els.soundBtn.addEventListener('click', function (e) {
         e.stopPropagation();
         Sfx.muted = !Sfx.muted;
@@ -4173,10 +4330,7 @@
         html =
           '<div class="tag green">READY</div>' +
           '<h2>贪吃蛇</h2>' +
-          '<p class="desc">用 <b>↑ ↓ ← →</b> 或 <b>W A S D</b> 控制方向。<br>' +
-          '撞毁只扣 <b>1</b> 点生命（共 ' + Config.START_LIVES + ' 点），扣光才结束；连着吃可叠 <b>连击倍率</b>。<br>' +
-          '每过一关从三张 <b>升级卡</b> 中选一张；第 ' + Config.BOSS_FIRST_STAGE + ' / ' +
-          Config.TOTAL_STAGES + ' 关迎战 <b>Boss 蛇</b>，撞中它的尾巴即可击破。</p>' +
+          '<button class="btn ghost guide-trigger" id="ovGuide" type="button">❓ 玩法指引</button>' +
           this.renderModes() +
           this.renderSkins() +
           this.renderProfile() +
@@ -4386,6 +4540,14 @@
           App.showAchievements();
         });
       }
+      // 开始屏：玩法指引按钮 -> 打开指引弹窗
+      const guideBtn = document.getElementById('ovGuide');
+      if (guideBtn) {
+        guideBtn.addEventListener('click', function (e) {
+          if (e && e.stopPropagation) e.stopPropagation();
+          UI.showGuide();
+        });
+      }
       // 好友榜面板：导入 / 删除 / 返回
       const importBtn = document.getElementById('ovImport');
       if (importBtn) {
@@ -4460,6 +4622,36 @@
           self.onSaveName();
         });
       }
+    },
+
+    /** 玩法指引弹窗：构建富文本内容 */
+    buildGuideHtml: function () {
+      return '' +
+        '<p>用 <b>↑ ↓ ← →</b> 或 <b>W A S D</b> 控制方向，<b>空格 / Enter</b> 开始或暂停，<b>R</b> 重开。</p>' +
+        '<ul>' +
+          '<li>生命：共 <b>' + Config.START_LIVES + '</b> 点，撞墙 / 撞自己 / Boss / 障碍 / 毒区各扣 <b>1</b> 点，扣光结束。</li>' +
+          '<li>连击：连续吃食物可叠 <b>连击倍率</b>，最高可达 <b>×' + Config.COMBO_MAX_MUL + '</b>。</li>' +
+          '<li>升级卡：每过一关从三张强化卡中选一张，提升速度、生命、分数等。</li>' +
+          '<li>Boss 蛇：第 <b>' + Config.BOSS_FIRST_STAGE + '</b> / <b>' + Config.TOTAL_STAGES + '</b> 关出现，撞中它的尾巴即可击破。</li>' +
+          '<li>模式：闯关（清空 ' + Config.TOTAL_STAGES + ' 关）、无尽（无限冲分）、限时（' + Config.TIME_ATTACK_SEC + ' 秒竞速）。</li>' +
+          '<li>移动端：滑动屏幕转向，轻点屏幕暂停 / 继续。</li>' +
+        '</ul>';
+    },
+
+    /** 显示玩法指引弹窗 */
+    showGuide: function () {
+      if (!this.els.guideModal) return;
+      this.els.guideBody.innerHTML = this.buildGuideHtml();
+      this.els.guideModal.hidden = false;
+      this.guideVisible = true;
+    },
+
+    /** 关闭玩法指引弹窗并标记本 session 已阅 */
+    hideGuide: function () {
+      if (!this.els.guideModal) return;
+      this.els.guideModal.hidden = true;
+      this.guideVisible = false;
+      try { sessionStorage.setItem('snake-guide-closed', '1'); } catch (e) {}
     },
 
     /** G 轮：模式选择（开始屏） */
@@ -4581,7 +4773,7 @@
             '</li>';
         }
       }
-      const clearLabel = this.lbClearArmed ? '确认清空 (' + this.lbClearCountdown + 's)' : '清空';
+      const clearLabel = this.lbClearArmed ? ('清空(' + this.lbClearCountdown + 's)') : '清空';
       return '' +
         '<div class="leaderboard">' +
           '<div class="lb-header">' +
@@ -4692,7 +4884,7 @@
       this.lbClearArmed = true;
       this.lbClearCountdown = 5;
       const btn = document.getElementById('lbClear');
-      if (btn) btn.textContent = '确认清空 (' + this.lbClearCountdown + 's)';
+      if (btn) btn.textContent = '清空(' + this.lbClearCountdown + 's)';
       const self = this;
       // 5 秒后若未确认，自动取消
       this.lbClearTimer = window.setTimeout(function () {
@@ -4706,7 +4898,7 @@
             if (!self.lbClearArmed) return;
             self.lbClearCountdown = 5 - step;
             const b = document.getElementById('lbClear');
-            if (b && self.lbClearArmed) b.textContent = '确认清空 (' + self.lbClearCountdown + 's)';
+            if (b && self.lbClearArmed) b.textContent = '清空(' + self.lbClearCountdown + 's)';
           }, step * 1000);
         })(i);
       }
@@ -4781,6 +4973,14 @@
 
       // 首次交互解锁音频
       Sfx.unlock();
+
+      // 玩法指引弹窗打开时：Esc / 空格 / Enter / 方向键 先关闭弹窗，不触发开始游戏
+      if (UI.guideVisible) {
+        if (k === 'Escape' || k === 'Esc' || code === 'Space' || k === ' ' || k === 'Spacebar' || k === 'Enter' || isArrow) {
+          UI.hideGuide();
+          return;
+        }
+      }
 
       // E 轮：升级卡选择（1 / 2 / 3），放在方向键之前拦截
       if (Game.awaitingUpgrade && (k === '1' || k === '2' || k === '3')) {
@@ -4926,6 +5126,8 @@
       this.lastTime = performance.now();
       this._hasRendered = false;
       requestAnimationFrame(this.boundFrame);
+
+      this.maybeShowGuide();
     },
 
     /**
@@ -4955,6 +5157,18 @@
     showStart: function () {
       Game.state = STATE.READY;
       UI.syncOverlay();
+      this.maybeShowGuide();
+    },
+
+    /** 首次进入首页时自动弹出玩法指引（每个 session 只自动弹一次） */
+    maybeShowGuide: function () {
+      if (UI.guideVisible) return;
+      try {
+        // 无 sessionStorage（如测试环境）或已关闭本 session，都不再自动弹出
+        if (typeof sessionStorage === 'undefined') return;
+        if (sessionStorage.getItem('snake-guide-closed') === '1') return;
+      } catch (e) { return; }
+      UI.showGuide();
     },
 
     /** H 轮：进入好友榜独立面板 */

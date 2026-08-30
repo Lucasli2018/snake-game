@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>暗夜贪吃蛇 · 成就系统展示</title>
+<style>
+  :root{
+    --bg:#0a0a16; --panel:#11121f; --panel2:#161829;
+    --ink:#e2e8f0; --muted:#94a3b8; --line:#2a2d44;
+    --gold:#fde68a; --gold2:#fbbf24; --green:#34d399; --purple:#a855f7;
+    --cyan:#22d3ee; --red:#f87171;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    background:radial-gradient(1200px 600px at 50% -10%,#1a1b33 0%,var(--bg) 60%);
+    color:var(--ink); min-height:100vh; padding:32px 18px 60px;
+  }
+  .wrap{max-width:1080px;margin:0 auto}
+  header{text-align:center;margin-bottom:28px}
+  h1{font-size:30px;font-weight:800;letter-spacing:1px}
+  h1 .star{color:var(--gold)}
+  .sub{color:var(--muted);margin-top:8px;font-size:14px}
+  .stats{display:flex;gap:14px;justify-content:center;margin:22px 0 30px;flex-wrap:wrap}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:14px 22px;text-align:center;min-width:120px}
+  .stat b{display:block;font-size:26px;color:var(--gold);font-weight:800}
+  .stat span{font-size:12px;color:var(--muted)}
+  .toolbar{display:flex;gap:10px;justify-content:center;margin-bottom:26px;flex-wrap:wrap}
+  .chip{background:var(--panel);border:1px solid var(--line);color:var(--muted);
+    padding:8px 16px;border-radius:999px;cursor:pointer;font-size:13px;transition:.2s}
+  .chip.active{background:var(--gold2);color:#1a1500;border-color:var(--gold2);font-weight:700}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(248px,1fr));gap:16px}
+  .card{position:relative;background:linear-gradient(160deg,var(--panel2),var(--panel));
+    border:1px solid var(--line);border-radius:16px;padding:18px 18px 16px;overflow:hidden;transition:.25s}
+  .card:hover{transform:translateY(-3px);border-color:var(--gold2)}
+  .card.locked::after{content:"未解锁";position:absolute;top:12px;right:12px;
+    font-size:10px;color:var(--muted);background:#0c0d18;border:1px solid var(--line);
+    padding:3px 8px;border-radius:999px}
+  .card.unlocked{border-color:rgba(250,204,21,.5);box-shadow:0 0 0 1px rgba(250,204,21,.18),0 8px 30px -12px rgba(250,204,21,.35)}
+  .card.unlocked::after{content:"★ 已解锁";position:absolute;top:12px;right:12px;
+    font-size:10px;color:#1a1500;background:var(--gold);font-weight:700;padding:3px 9px;border-radius:999px}
+  .emblem{width:46px;height:46px;border-radius:13px;display:flex;align-items:center;
+    justify-content:center;font-size:22px;margin-bottom:12px;
+    background:radial-gradient(circle at 30% 25%,#3a2f00,#1a1500);color:var(--gold);
+    border:1px solid rgba(250,204,21,.35)}
+  .card.locked .emblem{background:#171828;color:#4b5168;border-color:var(--line)}
+  .name{font-size:17px;font-weight:800;margin-bottom:4px}
+  .desc{font-size:13px;color:var(--muted);margin-bottom:12px;min-height:34px}
+  .cond{font-size:12px;color:var(--cyan);background:#0c1620;border:1px solid #18384a;
+    padding:7px 10px;border-radius:9px;line-height:1.5}
+  .tag{display:inline-block;font-size:10px;padding:2px 8px;border-radius:999px;
+    margin-bottom:10px;background:#1c1d30;color:var(--muted);border:1px solid var(--line)}
+  section{margin-top:46px}
+  h2{font-size:20px;font-weight:800;margin-bottom:6px;display:flex;align-items:center;gap:8px}
+  h2 .dot{width:9px;height:9px;border-radius:50%;background:var(--gold)}
+  .ssub{color:var(--muted);font-size:13px;margin-bottom:18px}
+  .skins{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px}
+  .skin{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;
+    display:flex;flex-direction:column;gap:10px}
+  .swatch{height:54px;border-radius:10px;display:flex;overflow:hidden;border:1px solid #0006}
+  .swatch i{flex:1}
+  .skin .nm{font-weight:700;font-size:15px}
+  .skin .rk{font-size:12px;color:var(--muted)}
+  .skin .rk b{color:var(--gold)}
+  .arch{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:20px 22px;font-size:13.5px;line-height:1.9;color:var(--ink)}
+  .arch code{background:#0c0d18;border:1px solid var(--line);border-radius:6px;
+    padding:2px 7px;color:var(--gold);font-size:12.5px}
+  .arch .muted{color:var(--muted)}
+  footer{margin-top:40px;text-align:center;color:var(--muted);font-size:12px}
+  @media(max-width:520px){h1{font-size:24px}.grid{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1><span class="star">★</span> 暗夜贪吃蛇 · 成就系统</h1>
+    <div class="sub">G 轮「模式与长线」落地 · 数据源自 <code>index.html</code> 真实实现</div>
+    <div class="stats">
+      <div class="stat"><b>12</b><span>成就总数</span></div>
+      <div class="stat"><b>5</b><span>皮肤（含默认）</span></div>
+      <div class="stat"><b>6</b><span>关卡模式</span></div>
+      <div class="stat"><b>1</b><span>成就→皮肤联动</span></div>
+    </div>
+  </header>
+
+  <div class="toolbar" id="filter">
+    <div class="chip active" data-cat="all">全部</div>
+    <div class="chip" data-cat="score">计分</div>
+    <div class="chip" data-cat="combo">连击</div>
+    <div class="chip" data-cat="boss">战斗</div>
+    <div class="chip" data-cat="progress">进度</div>
+    <div class="chip" data-cat="skill">技巧/运气</div>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <section>
+    <h2><span class="dot"></span>成就 → 皮肤 解锁链</h2>
+    <div class="ssub">部分成就达成后，会永久解锁对应的蛇皮肤（存档于 <code>snake-achievements.v1</code>）。</div>
+    <div class="skins" id="skins"></div>
+  </section>
+
+  <section>
+    <h2><span class="dot"></span>系统架构</h2>
+    <div class="arch">
+      <div>· <b>定义</b>：<code>ACHIEVEMENTS</code> 数组集中维护 12 项（id / name / desc），是单一事实来源。</div>
+      <div>· <b>判定</b>：<code>Game.checkAchievements()</code> 在每局结束（<code>gameOver()</code>）时统一扫描所有条件——单局得分、最高连击、Boss 击破、通关、限时奖励、速度、蛇长、累计局数。</div>
+      <div>· <b>存储</b>：<code>Achievements.unlock(id)</code> 写入 <code>{ 成就id: 时间戳 }</code> 到 localStorage；脏数据自动降级为空进度，绝不抛异常。</div>
+      <div>· <b>反馈</b>：新解锁时 <code>showAchievement(id)</code> 弹出右上角滑入提示 + 音效；重复解锁不重复弹窗。</div>
+      <div class="muted">· 关键红线：<code>first（完成第一局）</code> 依赖累计数据，必须等 <code>Stats.merge</code> 之后再判定，否则「完成第一局」永不解锁。</div>
+    </div>
+  </section>
+
+  <footer>零依赖单文件范式 · 与 index.html 同源数据</footer>
+</div>
+
+<script>
+const ACHIEVEMENTS = [
+  {id:'first',     name:'初出茅庐', desc:'完成第一局',       cat:'progress', cond:'累计游戏局数 ≥ 1（Stats.games ≥ 1）'},
+  {id:'score100',  name:'百分达人', desc:'单局得分达到 100', cat:'score',    cond:'本局 score ≥ 100'},
+  {id:'score500',  name:'五百俱乐部',desc:'单局得分达到 500', cat:'score',    cond:'本局 score ≥ 500（解锁「鎏金」皮肤）'},
+  {id:'score1000', name:'千分传说', desc:'单局得分达到 1000',cat:'score',    cond:'本局 score ≥ 1000'},
+  {id:'combo5',    name:'连击新手', desc:'单局达成 5 连击',  cat:'combo',    cond:'本局最高连击 comboBest ≥ 5'},
+  {id:'combo15',   name:'连击大师', desc:'单局达成 15 连击', cat:'combo',    cond:'本局最高连击 comboBest ≥ 15（解锁「霜蓝」皮肤）'},
+  {id:'boss1',     name:'屠龙者',   desc:'击破第一条 Boss 蛇',cat:'boss',    cond:'本局击破 Boss 数 runBossKills ≥ 1（解锁「虚空」皮肤）'},
+  {id:'bossSplit', name:'弑君者',   desc:'击破会分裂的 Boss', cat:'boss',    cond:'本局击破会分裂的 Boss（_killedSplitter）'},
+  {id:'clear',     name:'通关',     desc:'清空全部 6 关',    cat:'progress', cond:'关卡模式下胜利（win && stageMode）'},
+  {id:'lucky',     name:'幸运儿',   desc:'吃到一次限时奖励', cat:'skill',    cond:'本局吃到限时奖励（_gotBonus）'},
+  {id:'speed',     name:'风驰电掣', desc:'速度达到 13 格/秒',cat:'skill',    cond:'当前 tps() ≥ MAX_TPS（13 格/秒）'},
+  {id:'long',      name:'长寿蛇',   desc:'蛇身长到 20 节',   cat:'skill',    cond:'本局 snake.length ≥ 20'}
+];
+
+const SKINS = [
+  {id:'classic', name:'青竹', unlock:null,      c1:'#86efac',c2:'#34d399',c3:'#16a34a'},
+  {id:'gold',    name:'鎏金', unlock:'score500',c1:'#fde68a',c2:'#fbbf24',c3:'#d97706'},
+  {id:'void',    name:'虚空', unlock:'boss1',   c1:'#e9d5ff',c2:'#a855f7',c3:'#6b21a8'},
+  {id:'frost',   name:'霜蓝', unlock:'combo15', c1:'#cffafe',c2:'#22d3ee',c3:'#0e7490'},
+  {id:'crimson', name:'赤焰', unlock:'clear',   c1:'#fecaca',c2:'#f87171',c3:'#b91c1c'}
+];
+
+const CAT_LABEL = {score:'计分',combo:'连击',boss:'战斗',progress:'进度',skill:'技巧/运气'};
+
+const grid = document.getElementById('grid');
+function render(cat){
+  grid.innerHTML = '';
+  ACHIEVEMENTS.filter(a=>cat==='all'||a.cat===cat).forEach(a=>{
+    const d = document.createElement('div');
+    d.className = 'card locked';
+    d.innerHTML = `
+      <div class="tag">${CAT_LABEL[a.cat]}</div>
+      <div class="emblem">★</div>
+      <div class="name">${a.name}</div>
+      <div class="desc">${a.desc}</div>
+      <div class="cond">解锁条件：${a.cond}</div>`;
+    grid.appendChild(d);
+  });
+}
+
+// 演示：点击卡片切换解锁状态（仅展示效果，不影响游戏存档）
+grid.addEventListener('click', e=>{
+  const card = e.target.closest('.card');
+  if(card) card.classList.toggle('unlocked'), card.classList.toggle('locked');
+});
+
+document.getElementById('filter').addEventListener('click', e=>{
+  const chip = e.target.closest('.chip'); if(!chip) return;
+  document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+  chip.classList.add('active');
+  render(chip.dataset.cat);
+});
+
+function renderSkins(){
+  const box = document.getElementById('skins');
+  SKINS.forEach(s=>{
+    const ach = ACHIEVEMENTS.find(a=>a.id===s.unlock);
+    const el = document.createElement('div');
+    el.className = 'skin';
+    el.innerHTML = `
+      <div class="swatch"><i style="background:${s.c1}"></i><i style="background:${s.c2}"></i><i style="background:${s.c3}"></i></div>
+      <div class="nm">${s.name}</div>
+      <div class="rk">${s.unlock? `需成就 <b>${ach?ach.name:s.unlock}</b>` : '<b>默认解锁</b>'}</div>`;
+    box.appendChild(el);
+  });
+}
+
+render('all');
+renderSkins();
+</script>
+</body>
+</html>

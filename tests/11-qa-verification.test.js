@@ -200,7 +200,7 @@ test('11.7 同分按时间倒序：新记录排在前（时间倒序）', () => 
     { name: 'B', score: 50, date: '2024-03-01T00:00:00.000Z', duration: 5 }
   ]);
   const h = H.createHarness({ storage: 'ok', storageSeed: { 'snake-leaderboard': seed } });
-  h.Game.state = h.STATE.READY;
+  h.Game.state = h.STATE.LEADERBOARD;
   h.UI.syncOverlay();
   const html = h.els.get('panel').innerHTML;
   // 渲染顺序：第一个 lb-name 应为较新的 B（2024-03）
@@ -268,7 +268,7 @@ test('11.11 脏数据：score 为字符串 "50" 被归一为数字 50', () => {
     { name: 'AB', score: '50', date: '2024-01-01T00:00:00.000Z', duration: 3 }
   ]);
   const h = H.createHarness({ storage: 'ok', storageSeed: { 'snake-leaderboard': seed } });
-  h.Game.state = h.STATE.READY;
+  h.Game.state = h.STATE.LEADERBOARD;
   assert.doesNotThrow(() => h.UI.syncOverlay());
   assert.ok(h.els.get('panel').innerHTML.includes('>50<'), '字符串分数应被当作 50 渲染');
 });
@@ -280,7 +280,7 @@ test('11.12 脏数据：缺字段（无 score / 无 date）不崩且被合理归
       { name: 'CD', score: 10 }                                       // 缺 date
     ]);
     const h = H.createHarness({ storage: 'ok', storageSeed: { 'snake-leaderboard': seed } });
-    h.Game.state = h.STATE.READY;
+    h.Game.state = h.STATE.LEADERBOARD;
     h.UI.syncOverlay();
     const html = h.els.get('panel').innerHTML;
     // 缺 score 的项归一为 0；缺 date 的项补齐为合法 ISO（YYYY-MM-DD 段存在）

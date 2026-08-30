@@ -453,8 +453,8 @@ test('17.27 排行榜记录所属模式', () => {
   const list = JSON.parse(raw);
   assert.strictEqual(list[0].mode, 'timeattack', '记录应带上模式');
 
-  // 榜单 Top10 只在开始屏渲染，切到 READY 再检查模式标签
-  g.state = h.STATE.READY;
+  // 榜单 Top10 在独立排行榜面板渲染，进入 LEADERBOARD 态再检查模式标签
+  g.state = h.STATE.LEADERBOARD;
   h.UI.syncOverlay();
   assert.ok(h.els.get('panel').innerHTML.includes('限时'), '榜单行应显示模式名');
 });

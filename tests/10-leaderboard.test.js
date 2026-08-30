@@ -56,7 +56,7 @@ const CLICK = { stopPropagation() {}, preventDefault() {} };
  * ================================================================== */
 test('10.1 开始屏空榜：显示「排行榜 TOP 10」「暂无记录」和清空按钮', () => {
   const h = H.createHarness();
-  h.Game.state = h.STATE.READY;
+  h.Game.state = h.STATE.LEADERBOARD;
   h.UI.syncOverlay();
   const html = h.els.get('panel').innerHTML;
   assert.ok(html.includes('排行榜 TOP 10'), '应显示榜单标题');
@@ -129,7 +129,7 @@ test('10.7 超过 10 条时只保留分数最高的前 10 条（Top10 截断）'
     '保留分数最高的 10 条'
   );
   // 开始屏列表也应只渲染 10 行
-  h.Game.state = h.STATE.READY;
+  h.Game.state = h.STATE.LEADERBOARD;
   h.UI.syncOverlay();
   const html = h.els.get('panel').innerHTML;
   const cnt = (html.match(/class="lb-ranknum"/g) || []).length;
@@ -206,7 +206,7 @@ test('10.23 改为空名时回退为默认名 Ply', () => {
 test('10.12 清空按钮首次点击进入二次确认，暂不清除', () => {
   const h = H.createHarness();
   dieWithScore(h, 55);
-  h.Game.state = h.STATE.READY; // 清空按钮只在开始屏，切过去
+  h.Game.state = h.STATE.LEADERBOARD; // 清空按钮只在开始屏，切过去
   h.UI.syncOverlay();
   assert.strictEqual(readLb(h).length, 1);
   h.els.get('lbClear').fire('click', CLICK);
@@ -217,7 +217,7 @@ test('10.12 清空按钮首次点击进入二次确认，暂不清除', () => {
 test('10.13 清空按钮二次点击真正清空榜单', () => {
   const h = H.createHarness();
   dieWithScore(h, 55);
-  h.Game.state = h.STATE.READY;
+  h.Game.state = h.STATE.LEADERBOARD;
   h.UI.syncOverlay();
   h.els.get('lbClear').fire('click', CLICK);
   h.els.get('lbClear').fire('click', CLICK);
@@ -229,7 +229,7 @@ test('10.13 清空按钮二次点击真正清空榜单', () => {
 test('10.14 清空未在 5 秒内二次确认则自动取消，不清除', () => {
   const h = H.createHarness();
   dieWithScore(h, 55);
-  h.Game.state = h.STATE.READY;
+  h.Game.state = h.STATE.LEADERBOARD;
   h.UI.syncOverlay();
   h.els.get('lbClear').fire('click', CLICK);
   h.flushTimers(); // 触发 5 秒自动取消
@@ -243,7 +243,7 @@ test('10.14 清空未在 5 秒内二次确认则自动取消，不清除', () =>
 test('10.15 排行榜脏数据（非法 JSON）降级为空榜，不崩溃', () => {
   assert.doesNotThrow(() => {
     const h = H.createHarness({ storage: 'ok', storageSeed: { 'snake-leaderboard': '{bad json' } });
-    h.Game.state = h.STATE.READY;
+    h.Game.state = h.STATE.LEADERBOARD;
     h.UI.syncOverlay();
     assert.ok(h.els.get('panel').innerHTML.includes('暂无记录'), '脏数据应显示空榜');
   });
@@ -251,7 +251,7 @@ test('10.15 排行榜脏数据（非法 JSON）降级为空榜，不崩溃', () 
 
 test('10.16 排行榜存储为非数组时降级为空榜', () => {
   const h = H.createHarness({ storage: 'ok', storageSeed: { 'snake-leaderboard': '123' } });
-  h.Game.state = h.STATE.READY;
+  h.Game.state = h.STATE.LEADERBOARD;
   h.UI.syncOverlay();
   assert.ok(h.els.get('panel').innerHTML.includes('暂无记录'), '非数组应显示空榜');
 });
@@ -259,7 +259,7 @@ test('10.16 排行榜存储为非数组时降级为空榜', () => {
 test('10.17 加载时名字超过 3 字符被截断', () => {
   const seed = JSON.stringify([{ name: 'ABCD', score: 10, date: '2024-01-01T00:00:00.000Z', duration: 3 }]);
   const h = H.createHarness({ storage: 'ok', storageSeed: { 'snake-leaderboard': seed } });
-  h.Game.state = h.STATE.READY;
+  h.Game.state = h.STATE.LEADERBOARD;
   h.UI.syncOverlay();
   assert.ok(h.els.get('panel').innerHTML.includes('>ABC<'), '名字应截断为 ABC');
 });
@@ -267,7 +267,7 @@ test('10.17 加载时名字超过 3 字符被截断', () => {
 test('10.18 加载时时长被取整', () => {
   const seed = JSON.stringify([{ name: 'AB', score: 10, date: '2024-01-01T00:00:00.000Z', duration: 3.7 }]);
   const h = H.createHarness({ storage: 'ok', storageSeed: { 'snake-leaderboard': seed } });
-  h.Game.state = h.STATE.READY;
+  h.Game.state = h.STATE.LEADERBOARD;
   h.UI.syncOverlay();
   assert.ok(h.els.get('panel').innerHTML.includes('3s'), '时长应取整为 3s');
 });
@@ -279,7 +279,7 @@ test('10.19 隐私模式（localStorage 不存在）下游戏与排行榜流程�
   assert.doesNotThrow(() => {
     const h = H.createHarness({ storage: 'undefined' });
     assert.ok(dieWithScore(h, 40), '应正常进入 gameover');
-    h.Game.state = h.STATE.READY;
+    h.Game.state = h.STATE.LEADERBOARD;
     h.UI.syncOverlay(); // 不应抛异常
   });
 });
@@ -297,7 +297,7 @@ test('10.21 一局结束后重开，开始屏仍显示该记录', () => {
   const h = H.createHarness();
   dieWithScore(h, 90);
   h.App.restart();
-  h.Game.state = h.STATE.READY;
+  h.Game.state = h.STATE.LEADERBOARD;
   h.UI.syncOverlay();
   assert.ok(h.els.get('panel').innerHTML.includes('lb-ranknum'), '重开后开始屏应仍显示记录');
 });

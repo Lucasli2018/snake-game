@@ -812,6 +812,79 @@
     padding: clamp(8px, 2cqw, 12px) 0;
   }
 
+  /* G 轮：成就面板 */
+  .ach-wrap { width: 100%; text-align: left; }
+  .ach-progress {
+    margin-bottom: clamp(10px, 2.5cqw, 16px);
+  }
+  .ach-progress-bar {
+    width: 100%;
+    height: clamp(8px, 1.6cqw, 12px);
+    background: rgba(148,163,184,0.18);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  .ach-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #fbbf24, #fde68a);
+    border-radius: 99px;
+    transition: width .4s ease;
+  }
+  .ach-progress-text {
+    margin-top: 6px;
+    font-size: clamp(11px, 2.6cqw, 13px);
+    color: #94a3b8;
+  }
+  .ach-progress-text b { color: #fde68a; font-weight: 800; }
+  .ach-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: clamp(6px, 1.8cqw, 12px);
+    width: 100%;
+    max-height: 42vh;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148,163,184,.4) transparent;
+  }
+  .ach-card {
+    border-radius: 12px;
+    padding: clamp(8px, 2cqw, 12px);
+    border: 1px solid rgba(148,163,184,0.2);
+    background: rgba(248,250,252,0.05);
+    transition: transform .15s, border-color .15s;
+  }
+  .ach-card.unlocked {
+    border-color: rgba(250,204,21,0.5);
+    background: linear-gradient(160deg, rgba(250,204,21,0.16), rgba(250,204,21,0.05));
+    box-shadow: 0 0 0 1px rgba(250,204,21,0.15) inset;
+  }
+  .ach-card.locked { opacity: 0.78; }
+  .ach-top {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+  }
+  .ach-star { font-size: 1.1em; color: #fbbf24; }
+  .ach-card.locked .ach-star { color: #64748b; }
+  .ach-name { font-weight: 800; font-size: clamp(13px, 3cqw, 15px); color: #f8fafc; }
+  .ach-desc {
+    font-size: clamp(11px, 2.5cqw, 13px);
+    color: #cbd5e1;
+    margin-bottom: 4px;
+  }
+  .ach-cond {
+    font-size: clamp(10px, 2.3cqw, 12px);
+    color: #94a3b8;
+    line-height: 1.45;
+  }
+  .ach-skin {
+    margin-top: 5px;
+    font-size: clamp(10px, 2.3cqw, 12px);
+    color: #a855f7;
+    font-weight: 700;
+  }
+
   .lb-current {
     display: flex;
     align-items: center;
@@ -1160,18 +1233,18 @@
 
   /** G 轮：成就（达成条件集中在 Game.checkAchievements 里判定） */
   const ACHIEVEMENTS = [
-    { id: 'first',     name: '初出茅庐',   desc: '完成第一局' },
-    { id: 'score100',  name: '百分达人',   desc: '单局得分达到 100' },
-    { id: 'score500',  name: '五百俱乐部', desc: '单局得分达到 500' },
-    { id: 'score1000', name: '千分传说',   desc: '单局得分达到 1000' },
-    { id: 'combo5',    name: '连击新手',   desc: '单局达成 5 连击' },
-    { id: 'combo15',   name: '连击大师',   desc: '单局达成 15 连击' },
-    { id: 'boss1',     name: '屠龙者',     desc: '击破第一条 Boss 蛇' },
-    { id: 'bossSplit', name: '弑君者',     desc: '击破会分裂的 Boss' },
-    { id: 'clear',     name: '通关',       desc: '清空全部 6 关' },
-    { id: 'lucky',     name: '幸运儿',     desc: '吃到一次限时奖励' },
-    { id: 'speed',     name: '风驰电掣',   desc: '速度达到 13 格/秒' },
-    { id: 'long',      name: '长寿蛇',     desc: '蛇身长到 20 节' }
+    { id: 'first',     name: '初出茅庐',   desc: '完成第一局',         cond: '累计游戏局数 ≥ 1' },
+    { id: 'score100',  name: '百分达人',   desc: '单局得分达到 100',   cond: '本局得分 ≥ 100' },
+    { id: 'score500',  name: '五百俱乐部', desc: '单局得分达到 500',   cond: '本局得分 ≥ 500' },
+    { id: 'score1000', name: '千分传说',   desc: '单局得分达到 1000',  cond: '本局得分 ≥ 1000' },
+    { id: 'combo5',    name: '连击新手',   desc: '单局达成 5 连击',    cond: '本局最高连击 ≥ 5' },
+    { id: 'combo15',   name: '连击大师',   desc: '单局达成 15 连击',   cond: '本局最高连击 ≥ 15' },
+    { id: 'boss1',     name: '屠龙者',     desc: '击破第一条 Boss 蛇', cond: '本局击破 Boss 数 ≥ 1' },
+    { id: 'bossSplit', name: '弑君者',     desc: '击破会分裂的 Boss',  cond: '击破会分裂的 Boss' },
+    { id: 'clear',     name: '通关',       desc: '清空全部 6 关',      cond: '关卡模式胜利' },
+    { id: 'lucky',     name: '幸运儿',     desc: '吃到一次限时奖励',   cond: '吃到一次限时奖励' },
+    { id: 'speed',     name: '风驰电掣',   desc: '速度达到 13 格/秒',  cond: '速度达到上限 13 格/秒' },
+    { id: 'long',      name: '长寿蛇',     desc: '蛇身长到 20 节',     cond: '本局蛇身长度 ≥ 20 节' }
   ];
 
   /**
@@ -1198,7 +1271,7 @@
     right: { x: 1,  y: 0  }
   };
 
-  const STATE = { READY: 'ready', PLAYING: 'playing', PAUSED: 'paused', GAMEOVER: 'gameover', LEADERBOARD: 'leaderboard', SOCIAL: 'social' };
+  const STATE = { READY: 'ready', PLAYING: 'playing', PAUSED: 'paused', GAMEOVER: 'gameover', LEADERBOARD: 'leaderboard', SOCIAL: 'social', ACHIEVEMENTS: 'achievements' };
 
   /* ============================================================
    * 2. 存储（隐私模式下 localStorage 会抛错，全部 try-catch 兜底）
@@ -4094,8 +4167,9 @@
           this.renderProfile() +
           '<button class="btn" id="ovBtn" type="button">开始游戏</button>' +
           '<button class="btn ghost" id="ovLb" type="button">🏆 排行榜</button>' +
+          '<button class="btn ghost" id="ovAch" type="button">★ 成就</button>' +
           '<button class="btn ghost" id="ovFriends" type="button">👥 好友榜</button>' +
-          '<p class="hint">按 空格 / Enter 开始 · 点「排行榜 / 好友榜」查看榜单</p>'
+          '<p class="hint">按 空格 / Enter 开始 · 点「排行榜 / 成就 / 好友榜」查看</p>'
 
       } else if (s === STATE.PAUSED) {
         // 暂停屏不加排行榜，保持轻量
@@ -4196,6 +4270,14 @@
           '<button class="btn ghost" id="ovBack" type="button">返回</button>' +
           '<p class="hint">按 Esc / 点「返回」回到开始</p>';
 
+      } else if (s === STATE.ACHIEVEMENTS) {
+        html =
+          '<div class="tag">ACHIEVEMENTS</div>' +
+          '<h2>★ 成就</h2>' +
+          this.renderAchievementsBlock() +
+          '<button class="btn ghost" id="ovBack" type="button">返回</button>' +
+          '<p class="hint">按 Esc / 点「返回」回到开始</p>';
+
       } else {
         this.els.overlay.hidden = true;
         this.updateBuff();
@@ -4277,6 +4359,14 @@
         frBtn.addEventListener('click', function (e) {
           if (e && e.stopPropagation) e.stopPropagation();
           App.showFriends();
+        });
+      }
+      // 开始屏：成就按钮 -> 进入独立成就面板
+      const achBtn = document.getElementById('ovAch');
+      if (achBtn) {
+        achBtn.addEventListener('click', function (e) {
+          if (e && e.stopPropagation) e.stopPropagation();
+          App.showAchievements();
         });
       }
       // 好友榜面板：导入 / 删除 / 返回
@@ -4514,6 +4604,46 @@
         '</div>';
     },
 
+    /** G 轮：成就面板（开始屏点「★ 成就」进入，展示全部 12 项 + 解锁进度 + 皮肤联动） */
+    renderAchievementsBlock: function () {
+      const total = Achievements.total();
+      const got = Achievements.count();
+      const pct = total ? Math.round((got / total) * 100) : 0;
+
+      // 成就 id -> 由它解锁的皮肤名（用于卡片底部提示）
+      const skinByAch = {};
+      for (let i = 0; i < SNAKE_SKINS.length; i++) {
+        const sk = SNAKE_SKINS[i];
+        if (sk.unlock) skinByAch[sk.unlock] = sk.name;
+      }
+
+      let cards = '';
+      for (let i = 0; i < ACHIEVEMENTS.length; i++) {
+        const a = ACHIEVEMENTS[i];
+        const unlocked = Achievements.has(a.id);
+        const skinHint = skinByAch[a.id] ? '解锁皮肤「' + skinByAch[a.id] + '」' : '';
+        cards +=
+          '<div class="ach-card' + (unlocked ? ' unlocked' : ' locked') + '">' +
+            '<div class="ach-top">' +
+              '<span class="ach-star">' + (unlocked ? '★' : '☆') + '</span>' +
+              '<span class="ach-name">' + escapeHtml(a.name) + '</span>' +
+            '</div>' +
+            '<div class="ach-desc">' + escapeHtml(a.desc) + '</div>' +
+            '<div class="ach-cond">解锁：' + escapeHtml(a.cond) + '</div>' +
+            (skinHint ? '<div class="ach-skin">' + escapeHtml(skinHint) + '</div>' : '') +
+          '</div>';
+      }
+
+      return '' +
+        '<div class="ach-wrap">' +
+          '<div class="ach-progress">' +
+            '<div class="ach-progress-bar"><div class="ach-progress-fill" style="width:' + pct + '%"></div></div>' +
+            '<div class="ach-progress-text">已解锁 <b>' + got + '</b> / ' + total + '（' + pct + '%）</div>' +
+          '</div>' +
+          '<div class="ach-grid">' + cards + '</div>' +
+        '</div>';
+    },
+
     /** H 轮：导入一条好友分享码，刷新提示与列表 */
     onImportFriend: function () {
       const input = document.getElementById('friendCode');
@@ -4665,6 +4795,7 @@
         else if (Game.state === STATE.PAUSED) App.resume();
         else if (Game.state === STATE.LEADERBOARD) App.showStart();
         else if (Game.state === STATE.SOCIAL) App.showStart();
+        else if (Game.state === STATE.ACHIEVEMENTS) App.showStart();
         return;
       }
 
@@ -4794,6 +4925,7 @@
       else if (Game.state === STATE.GAMEOVER) this.restart();
       else if (Game.state === STATE.LEADERBOARD) return;  // 独立面板态：不误开始
       else if (Game.state === STATE.SOCIAL) return;        // 独立面板态：不误开始
+      else if (Game.state === STATE.ACHIEVEMENTS) return;  // 独立面板态：不误开始
     },
 
     /** 进入独立排行榜面板（暂停游戏逻辑，与 READY 同级） */
@@ -4811,6 +4943,12 @@
     /** H 轮：进入好友榜独立面板 */
     showFriends: function () {
       Game.state = STATE.SOCIAL;
+      UI.syncOverlay();
+    },
+
+    /** G 轮：进入成就独立面板 */
+    showAchievements: function () {
+      Game.state = STATE.ACHIEVEMENTS;
       UI.syncOverlay();
     },
 

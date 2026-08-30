@@ -1100,7 +1100,13 @@
     ACH_TOAST_TIME: 3.2,     // 成就提示停留秒数
     STORAGE_STATS: 'snake-stats.v1',
     STORAGE_ACH: 'snake-achievements.v1',
-    STORAGE_SKIN: 'snake-skin.v1'
+    STORAGE_SKIN: 'snake-skin.v1',
+
+    /* ---- H 轮：社交分享（零后端） ---- */
+    STORAGE_FRIENDS: 'snake-friends.v1',
+    SHARE_PREFIX: 'SNK1-',
+    SHARE_VERSION: 1,
+    FRIENDS_MAX: 50
   };
 
   /**
@@ -1192,7 +1198,7 @@
     right: { x: 1,  y: 0  }
   };
 
-  const STATE = { READY: 'ready', PLAYING: 'playing', PAUSED: 'paused', GAMEOVER: 'gameover', LEADERBOARD: 'leaderboard' };
+  const STATE = { READY: 'ready', PLAYING: 'playing', PAUSED: 'paused', GAMEOVER: 'gameover', LEADERBOARD: 'leaderboard', SOCIAL: 'social' };
 
   /* ============================================================
    * 2. 存储（隐私模式下 localStorage 会抛错，全部 try-catch 兜底）
@@ -1213,6 +1219,138 @@
       } catch (e) {
         return false;
       }
+    }
+  };
+
+  /* ============================================================
+   * H 轮：社交分享（零后端 · 纯前端）
+   * - Share：本局成绩 <-> 短码（SNK1- 前缀 + base64）双向编解码
+   * - FriendsBoard：导入/查看/删除好友成绩（localStorage，与排行榜严格分离）
+   * ========================================================== */
+  const Share = {
+    /** 把本局成绩打包成可复制的短码 */
+    encode: function (run) {
+      if (!run || typeof run !== 'object') return '';
+      const obj = {
+        v: Number(run.v) || 0,
+        m: Number(run.m) || 0,
+        s: Number(run.s) || 0,
+        l: Number(run.l) || 0,
+        t: Number(run.t) || 0,
+        b: Number(run.b) || 0,
+        c: Number(run.c) || 0,
+        a: Number(run.a) || 0
+      };
+      try {
+        const json = JSON.stringify(obj);
+        // 中文无关的纯数字对象，unicode 转义保险
+        const b64 = btoa(unescape(encodeURIComponent(json)));
+        return Config.SHARE_PREFIX + b64;
+      } catch (e) {
+        return '';
+      }
+    },
+
+    /** 解析分享码；非法 / 截断 / 旧版本一律返回 null，绝不抛异常 */
+    decode: function (code) {
+      if (!code || typeof code !== 'string') return null;
+      code = code.trim();
+      const pre = Config.SHARE_PREFIX;
+      if (code.indexOf(pre) !== 0) return null;
+      const b64 = code.slice(pre.length).trim();
+      if (!b64) return null;
+      try {
+        const json = decodeURIComponent(escape(atob(b64)));
+        const obj = JSON.parse(json);
+        if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return null;
+        const v = Number(obj.v);
+        const m = Number(obj.m);
+        const s = Number(obj.s);
+        if (!isFinite(v) || !isFinite(m) || !isFinite(s)) return null;
+        if (v < Config.SHARE_VERSION || v > Config.SHARE_VERSION) return null; // 仅支持当前版本
+        if (m < 0 || m > 2) return null;
+        if (s < 0) return null;
+        return {
+          v: Math.floor(v),
+          m: Math.floor(m),
+          s: Math.floor(s),
+          l: Share._int(obj.l, 0, 9999),
+          t: Share._int(obj.t, 0, 999999),
+          b: Share._int(obj.b, 0, 9999),
+          c: Share._int(obj.c, 0, 9999),
+          a: Share._int(obj.a, 0, 99)
+        };
+      } catch (e) {
+        return null;
+      }
+    },
+
+    _int: function (val, lo, hi) {
+      const n = Number(val);
+      if (!isFinite(n)) return lo;
+      const n2 = Math.floor(n);
+      if (n2 < lo) return lo;
+      if (n2 > hi) return hi;
+      return n2;
+    }
+  };
+
+  /** H 轮：好友成绩榜（导入他人的分享码，与自己的排行榜严格区分） */
+  const FriendsBoard = {
+    list: function () {
+      const raw = Storage.get(Config.STORAGE_FRIENDS, '');
+      if (!raw) return [];
+      try {
+        const arr = JSON.parse(raw);
+        if (!Array.isArray(arr)) return [];
+        const seen = {};
+        const out = [];
+        for (let i = 0; i < arr.length; i++) {
+          const it = arr[i];
+          if (!it || typeof it !== 'object' || typeof it.code !== 'string') continue;
+          if (seen[it.code]) continue;
+          seen[it.code] = true;
+          out.push({
+            code: it.code,
+            data: it.data && typeof it.data === 'object' ? it.data : null,
+            importedAt: Number(it.importedAt) || 0
+          });
+        }
+        out.sort(function (x, y) {
+          return (y.data ? y.data.s : 0) - (x.data ? x.data.s : 0);
+        });
+        return out;
+      } catch (e) {
+        return [];
+      }
+    },
+
+    /** 导入一条分享码；返回 { ok, reason, data } */
+    add: function (code) {
+      if (!code || typeof code !== 'string') return { ok: false, reason: 'empty' };
+      code = code.trim();
+      if (!code) return { ok: false, reason: 'empty' };
+      const data = Share.decode(code);
+      if (!data) return { ok: false, reason: 'invalid' };
+      const list = this.list();
+      for (let i = 0; i < list.length; i++) {
+        if (list[i].code === code) return { ok: false, reason: 'dup' };
+      }
+      list.push({ code: code, data: data, importedAt: Date.now() });
+      if (list.length > Config.FRIENDS_MAX) list.length = Config.FRIENDS_MAX;
+      Storage.set(Config.STORAGE_FRIENDS, JSON.stringify(list));
+      return { ok: true, data: data };
+    },
+
+    /** 删除某条记录（按分享码），返回删除后的列表 */
+    remove: function (code) {
+      const list = this.list().filter(function (it) { return it.code !== code; });
+      Storage.set(Config.STORAGE_FRIENDS, JSON.stringify(list));
+      return list;
+    },
+
+    clear: function () {
+      Storage.set(Config.STORAGE_FRIENDS, '[]');
     }
   };
 
@@ -2667,6 +2805,24 @@
       } else {
         this.isRecord = false;
       }
+    },
+
+    /** H 轮：把本局关键成绩打包成分享码用的 runData（m 为模式索引：stage=0/endless=1/timeattack=2） */
+    buildShareRun: function () {
+      let m = 0;
+      for (let i = 0; i < MODES.length; i++) {
+        if (MODES[i].id === this.mode) { m = i; break; }
+      }
+      return {
+        v: Config.SHARE_VERSION,
+        m: m,
+        s: this.score,
+        l: this.snake.length,
+        t: Math.floor(this._runDuration || 0),
+        b: this.runBossKills,
+        c: this.comboBest,
+        a: Achievements.count()
+      };
     }
   };
 
@@ -3629,6 +3785,96 @@
       .replace(/"/g, '&quot;');
   }
 
+  /** H 轮：复制文本到剪贴板（优先 Clipboard API，失败降级 execCommand） */
+  function copyText(text) {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch (e) { /* 继续走降级 */ }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return !!ok;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /** H 轮：合成一张成绩卡 PNG 并触发下载（file:// 下 canvas 无跨域图片，不会被污染） */
+  function saveScoreCard() {
+    try {
+      const c = document.createElement('canvas');
+      c.width = 480; c.height = 600;
+      const ctx = c.getContext('2d');
+      const skin = (typeof Skins !== 'undefined' && Skins.currentSkin) ? Skins.currentSkin() : null;
+      const head = skin && skin.head ? skin.head : '#65d36e';
+      const body = skin && skin.body ? skin.body : '#3fae57';
+      // 背景
+      const grad = ctx.createLinearGradient(0, 0, 0, 600);
+      grad.addColorStop(0, '#0f172a');
+      grad.addColorStop(1, '#1e293b');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 480, 600);
+      // 标题
+      ctx.fillStyle = '#e2e8f0';
+      ctx.font = 'bold 34px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(Game.win ? '通关啦！' : '贪吃蛇 · 成绩卡', 240, 70);
+      // 蛇头图标
+      ctx.fillStyle = head;
+      ctx.beginPath(); ctx.arc(240, 130, 34, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = body;
+      ctx.beginPath(); ctx.arc(200, 165, 24, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(168, 192, 16, 0, Math.PI * 2); ctx.fill();
+      // 分数
+      ctx.fillStyle = '#fbbf24';
+      ctx.font = 'bold 72px sans-serif';
+      ctx.fillText(String(Game.score), 240, 300);
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '18px sans-serif';
+      ctx.fillText('得分', 240, 326);
+      // 明细
+      const run = Game.buildShareRun();
+      const mName = MODES[run.m] ? MODES[run.m].name : '未知';
+      const lines = [
+        '模式：' + mName,
+        '蛇身长度：' + run.l,
+        '时长：' + run.t + ' 秒',
+        '最高连击：' + run.c,
+        '击破 Boss：' + run.b,
+        '成就：' + run.a + ' / 12'
+      ];
+      ctx.fillStyle = '#cbd5e1';
+      ctx.font = '20px sans-serif';
+      ctx.textAlign = 'left';
+      for (let i = 0; i < lines.length; i++) {
+        ctx.fillText(lines[i], 70, 380 + i * 30);
+      }
+      // 分享码
+      const code = Share.encode(run);
+      ctx.fillStyle = '#64748b';
+      ctx.font = '13px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('分享码：' + code, 240, 575);
+      // 下载
+      const url = c.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'snake-score.png';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (e) { /* 不支持时静默 */ }
+  }
+
   /** 排行榜日期只取 YYYY-MM-DD 展示 */
   function formatLbDate(iso) {
     if (typeof iso !== 'string' || iso.length < 10) return '';
@@ -3848,7 +4094,8 @@
           this.renderProfile() +
           '<button class="btn" id="ovBtn" type="button">开始游戏</button>' +
           '<button class="btn ghost" id="ovLb" type="button">🏆 排行榜</button>' +
-          '<p class="hint">按 空格 / Enter 开始 · 点「排行榜」查看榜单</p>'
+          '<button class="btn ghost" id="ovFriends" type="button">👥 好友榜</button>' +
+          '<p class="hint">按 空格 / Enter 开始 · 点「排行榜 / 好友榜」查看榜单</p>'
 
       } else if (s === STATE.PAUSED) {
         // 暂停屏不加排行榜，保持轻量
@@ -3870,6 +4117,9 @@
         else if (Game.deathReason === 'hazard')   reason = '踩进毒区了，紫色区域要绕开。';
         else                                       reason = '咬到自己了，别急着回头。';
         if (!Game.win) reason += '（本局闯到第 ' + Game.stage + ' 关）';
+
+        // H 轮：本局成绩打包成分享码，供复制 / 好友榜导入
+        const shareCode = Share.encode(Game.buildShareRun());
 
         // 本局成绩已在 endGame 时写入排行榜（Leaderboard.lastRecord）
         let lbHtml = '';
@@ -3911,6 +4161,16 @@
           '</div>' +
           '<p class="desc">' + reason + '</p>' +
           lbHtml +
+          (shareCode
+            ? '<div class="share-block">' +
+                '<div class="share-label">成绩分享码（发给好友比一比）</div>' +
+                '<div class="share-code" id="shareCode">' + escapeHtml(shareCode) + '</div>' +
+                '<div class="share-actions">' +
+                  '<button class="btn ghost" id="ovShareCopy" type="button">复制分享码</button>' +
+                  '<button class="btn ghost" id="ovCardSave" type="button">保存成绩卡</button>' +
+                '</div>' +
+              '</div>'
+            : '') +
           '<button class="btn" id="ovBtn" type="button">再来一局</button>' +
           '<p class="hint">按 R / 空格 / 点击屏幕 重新开始</p>';
 
@@ -3919,6 +4179,20 @@
           '<div class="tag">LEADERBOARD</div>' +
           '<h2>🏆 排行榜</h2>' +
           this.renderLeaderboardBlock() +
+          '<button class="btn ghost" id="ovBack" type="button">返回</button>' +
+          '<p class="hint">按 Esc / 点「返回」回到开始</p>';
+
+      } else if (s === STATE.SOCIAL) {
+        html =
+          '<div class="tag">FRIENDS</div>' +
+          '<h2>👥 好友榜</h2>' +
+          '<p class="desc">把好友的「成绩分享码」粘进来，就能在这比一比（仅本机保存）。</p>' +
+          '<div class="social-import">' +
+            '<input id="friendCode" type="text" placeholder="粘贴 SNK1- 开头的分享码" maxlength="200">' +
+            '<button class="btn" id="ovImport" type="button">导入</button>' +
+          '</div>' +
+          '<div id="friendMsg" class="social-msg"></div>' +
+          this.renderFriendsBlock() +
           '<button class="btn ghost" id="ovBack" type="button">返回</button>' +
           '<p class="hint">按 Esc / 点「返回」回到开始</p>';
 
@@ -3994,6 +4268,64 @@
         backBtn.addEventListener('click', function (e) {
           if (e && e.stopPropagation) e.stopPropagation();
           App.showStart();
+        });
+      }
+
+      // 开始屏：好友榜按钮 -> 进入独立好友榜面板
+      const frBtn = document.getElementById('ovFriends');
+      if (frBtn) {
+        frBtn.addEventListener('click', function (e) {
+          if (e && e.stopPropagation) e.stopPropagation();
+          App.showFriends();
+        });
+      }
+      // 好友榜面板：导入 / 删除 / 返回
+      const importBtn = document.getElementById('ovImport');
+      if (importBtn) {
+        importBtn.addEventListener('click', function (e) {
+          if (e && e.stopPropagation) e.stopPropagation();
+          self.onImportFriend();
+        });
+      }
+      const friendInput = document.getElementById('friendCode');
+      if (friendInput) {
+        friendInput.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' || e.code === 'Enter') {
+            e.preventDefault();
+            self.onImportFriend();
+          }
+        });
+      }
+      const frList = FriendsBoard.list();
+      for (let i = 0; i < frList.length; i++) {
+        const delBtn = document.getElementById('frDel' + i);
+        if (!delBtn) continue;
+        (function (code) {
+          delBtn.addEventListener('click', function (e) {
+            if (e && e.stopPropagation) e.stopPropagation();
+            FriendsBoard.remove(code);
+            self.syncOverlay();
+          });
+        })(frList[i].code);
+      }
+
+      // 结束屏：复制分享码 / 保存成绩卡
+      const copyBtn = document.getElementById('ovShareCopy');
+      if (copyBtn) {
+        copyBtn.addEventListener('click', function (e) {
+          if (e && e.stopPropagation) e.stopPropagation();
+          const codeEl = document.getElementById('shareCode');
+          const txt = codeEl ? codeEl.textContent : '';
+          copyText(txt);
+          copyBtn.textContent = '已复制 ✓';
+          setTimeout(function () { copyBtn.textContent = '复制分享码'; }, 1500);
+        });
+      }
+      const cardBtn = document.getElementById('ovCardSave');
+      if (cardBtn) {
+        cardBtn.addEventListener('click', function (e) {
+          if (e && e.stopPropagation) e.stopPropagation();
+          saveScoreCard();
         });
       }
 
@@ -4153,6 +4485,51 @@
         '</div>';
     },
 
+    /** H 轮：好友榜列表（导入的他人成绩，与排行榜渲染复用 .leaderboard 样式） */
+    renderFriendsBlock: function () {
+      const list = FriendsBoard.list();
+      let rows = '';
+      if (list.length === 0) {
+        rows = '<li class="lb-empty">还没有好友成绩，去结算屏复制分享码发给好友吧</li>';
+      } else {
+        for (let i = 0; i < list.length; i++) {
+          const it = list[i];
+          const d = it.data;
+          const rank = i + 1;
+          const topCls = rank <= 3 ? ' is-top' + rank : '';
+          const mName = (d && MODES[d.m]) ? MODES[d.m].name : '未知';
+          rows +=
+            '<li class="' + topCls + '">' +
+              '<span class="lb-ranknum">' + rank + '</span>' +
+              '<span class="lb-score">' + (d ? d.s : 0) + '</span>' +
+              '<span class="lb-meta">' + mName + ' · 连击 ' + (d ? d.c : 0) + ' · Boss ' + (d ? d.b : 0) + ' · 成就 ' + (d ? d.a : 0) + '/12</span>' +
+              '<button class="lb-del" type="button" id="frDel' + i + '" data-code="' + escapeHtml(it.code) + '">×</button>' +
+            '</li>';
+        }
+      }
+      return '' +
+        '<div class="leaderboard">' +
+          '<div class="lb-header"><span>好友成绩（' + list.length + '）</span></div>' +
+          '<ul class="lb-list">' + rows + '</ul>' +
+        '</div>';
+    },
+
+    /** H 轮：导入一条好友分享码，刷新提示与列表 */
+    onImportFriend: function () {
+      const input = document.getElementById('friendCode');
+      const code = input ? input.value : '';
+      const res = FriendsBoard.add(code);
+      this.syncOverlay();   // 先刷新好友列表（会重建面板，旧提示元素随之销毁）
+      const msgEl = document.getElementById('friendMsg');  // 取重建后的元素再写提示
+      if (msgEl) {
+        if (res.ok) msgEl.textContent = '已导入好友成绩：' + (res.data.s) + ' 分';
+        else if (res.reason === 'dup') msgEl.textContent = '这条分享码已经导入过了';
+        else if (res.reason === 'empty') msgEl.textContent = '请先粘贴分享码';
+        else msgEl.textContent = '分享码无法识别，请检查是否完整';
+        msgEl.className = 'social-msg' + (res.ok ? ' ok' : ' err');
+      }
+    },
+
     /** 清空按钮：首次点击进入 5 秒二次确认倒计时（防误点），再次点击才真正清空 */
     onClearClick: function () {
       if (this.lbClearArmed) {
@@ -4287,6 +4664,7 @@
         if (Game.state === STATE.PLAYING) App.pause();
         else if (Game.state === STATE.PAUSED) App.resume();
         else if (Game.state === STATE.LEADERBOARD) App.showStart();
+        else if (Game.state === STATE.SOCIAL) App.showStart();
         return;
       }
 
@@ -4415,6 +4793,7 @@
       else if (Game.state === STATE.PAUSED)   this.resume();
       else if (Game.state === STATE.GAMEOVER) this.restart();
       else if (Game.state === STATE.LEADERBOARD) return;  // 独立面板态：不误开始
+      else if (Game.state === STATE.SOCIAL) return;        // 独立面板态：不误开始
     },
 
     /** 进入独立排行榜面板（暂停游戏逻辑，与 READY 同级） */
@@ -4426,6 +4805,12 @@
     /** 从独立面板返回开始屏 */
     showStart: function () {
       Game.state = STATE.READY;
+      UI.syncOverlay();
+    },
+
+    /** H 轮：进入好友榜独立面板 */
+    showFriends: function () {
+      Game.state = STATE.SOCIAL;
       UI.syncOverlay();
     },
 

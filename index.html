@@ -3679,6 +3679,8 @@
       };
 
       this.els.overlay.addEventListener('click', function () {
+        // 准备态：只有「开始游戏」按钮能开始，点屏幕任意处（模式/皮肤/排行榜等）不启动，避免误触
+        if (Game.state === STATE.READY) return;
         // E 轮：选卡期间点空白处不响应，避免把选卡面板顶掉
         if (Game.awaitingUpgrade) return;
         App.primaryAction();
@@ -4295,15 +4297,15 @@
 
       // 位移过小视为轻点（tap）：
       //   - 游戏中 -> 暂停（满足"移动端轻点暂停"，overlay 此时 hidden 不抢事件）
-      //   - 准备态 -> 开始（保留原"轻点开始"能力）
+      //   - 准备态 -> 不开始，必须点「开始游戏」按钮（与桌面一致，防误触）
       //   - 结束/暂停态 overlay 已显示，轻点交给 overlay 的 click -> primaryAction 处理，避免双重触发
       if (Math.abs(dx) < 24 && Math.abs(dy) < 24) {
         if (Game.state === STATE.PLAYING) App.pause();
-        else if (Game.state === STATE.READY) App.start();
         return;
       }
 
-      if (Game.state === STATE.READY) App.start();
+      // 准备态：不开始、不设方向，等用户点「开始游戏」按钮
+      if (Game.state === STATE.READY) return;
 
       let dir;
       if (Math.abs(dx) > Math.abs(dy)) dir = (dx > 0) ? DIR.right : DIR.left;

@@ -246,10 +246,12 @@ test('08.11 吃食物是等长移动（不再变长），插值数据自洽', ()
 test('08.12 各状态下点击遮罩的行为正确', () => {
   const h = H.createHarness();
 
-  // READY -> 开始
+  // READY 态：点遮罩任意处不开始，必须点「开始游戏」按钮
   assert.strictEqual(h.Game.state, h.STATE.READY);
   h.clickOverlay();
-  assert.strictEqual(h.Game.state, h.STATE.PLAYING);
+  assert.strictEqual(h.Game.state, h.STATE.READY, '准备态点遮罩任意处不应开始');
+  h.clickPanelBtn();
+  assert.strictEqual(h.Game.state, h.STATE.PLAYING, '点开始按钮应开始');
 
   // 暂停后 PLAYING 状态下遮罩是隐藏的，直接调 pause 再点
   h.App.pause();
@@ -295,12 +297,12 @@ test('08.14 重开会保留最高分，但清零本局数据', () => {
   assert.strictEqual(h.Game.dirQueue.length, 0);
 });
 
-test('08.15 触摸：轻点开始、滑动转向、轻点暂停、微小抖动不转向', () => {
+test('08.15 触摸：点开始按钮开始、滑动转向、轻点暂停、微小抖动不转向', () => {
   const h = H.createHarness();
   assert.strictEqual(h.Game.state, h.STATE.READY);
 
-  h.tap();                                   // 轻点开始
-  assert.strictEqual(h.Game.state, h.STATE.PLAYING, '轻点应能开始游戏');
+  h.clickPanelBtn();                         // 点击「开始游戏」按钮才开始
+  assert.strictEqual(h.Game.state, h.STATE.PLAYING, '点击开始按钮应能开始游戏');
 
   // 微小抖动（<24px）不应改变方向（不转向）；在 PLAYING 态会被判为轻点 -> 暂停
   h.swipe(5, 5);

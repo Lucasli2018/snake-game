@@ -93,13 +93,15 @@ test('12.3 主题按钮不干扰游戏进行', () => {
   assert.doesNotThrow(() => h.pumpFrames(30), '切主题后主循环应继续可玩');
 });
 
-test('12.4 轻点暂停：PLAYING 轻点暂停、PAUSED 轻点遮罩继续、READY 轻点开始', () => {
+test('12.4 轻点暂停：PLAYING 轻点暂停、PAUSED 轻点遮罩继续、READY 只点按钮开始', () => {
   const h = H.createHarness();
 
-  // READY 轻点开始
+  // READY 轻点任意处不开始（防误触），必须点「开始游戏」按钮
   assert.strictEqual(h.Game.state, h.STATE.READY);
   h.tap();
-  assert.strictEqual(h.Game.state, h.STATE.PLAYING, 'READY 轻点应开始');
+  assert.strictEqual(h.Game.state, h.STATE.READY, 'READY 轻点任意处不应开始');
+  h.clickPanelBtn();
+  assert.strictEqual(h.Game.state, h.STATE.PLAYING, '点开始按钮应开始');
 
   // PLAYING 轻点暂停
   h.tap();

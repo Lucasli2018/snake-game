@@ -114,12 +114,13 @@ test('14.6 撞 Boss 蛇身 -> 受击扣血（E 轮后不再一撞即死），dea
   g.state = h.STATE.PLAYING;
   const head = g.snake[0], d = g.dir;
   const nx = head.x + d.x, ny = head.y + d.y;
-  // 手工放置一条 Boss 蛇，头正好挡在玩家下一格
-  g.boss = {
+  // 手工放置一条 Boss 蛇，头正好挡在玩家下一格（F 轮起 Boss 是数组）
+  g.bosses = [{
     snake: [{ x: nx, y: ny }, { x: nx - 1, y: ny }, { x: nx - 2, y: ny }],
     prevSnake: [{ x: nx, y: ny }, { x: nx - 1, y: ny }, { x: nx - 2, y: ny }],
-    dir: h.DIR.right, acc: 0
-  };
+    dir: h.DIR.right, acc: 0, hp: 3, maxHp: 3, kind: 'chaser',
+    dashTimer: 99, dashWarn: 0, dashTime: 0, dashDir: h.DIR.right, hitFlash: 0
+  }];
   g.food = { x: 0, y: 0 };
   const r = g.tick();
   // E 轮：撞 Boss 改为扣 1 点生命，撞满才 dead
@@ -142,9 +143,13 @@ test('14.7 Boss 关判定与生成：第 3/6 关有 Boss，非 Boss 关无；Bos
   g.stageMode = true;
   g.reset();
   g.spawnBoss();
-  assert.ok(g.boss, '应成功生成 Boss 蛇');
-  assert.strictEqual(g.boss.snake.length, c.BOSS_LEN, 'Boss 蛇长度应等于 BOSS_LEN');
-  for (const s of g.boss.snake) {
+  // F 轮：Boss 改为数组（支持分裂），第 1 关生成的仍是单体
+  assert.strictEqual(g.bosses.length, 1, '应成功生成 1 条 Boss 蛇');
+  const boss = g.bosses[0];
+  assert.strictEqual(boss.snake.length, c.BOSS_LEN, 'Boss 蛇长度应等于 BOSS_LEN');
+  assert.strictEqual(boss.hp, c.BOSS_HP_BASE, 'Boss 血量应等于 BOSS_HP_BASE');
+  assert.strictEqual(boss.kind, 'chaser', '首个 Boss 关应为追猎者');
+  for (const s of boss.snake) {
     assert.ok(s.x >= 0 && s.x < c.COLS && s.y >= 0 && s.y < c.ROWS, 'Boss 节必须在棋盘内');
     assert.ok(!g.snakeOccupies(s.x, s.y), 'Boss 不得压在玩家蛇身上');
     assert.ok(!g.isObstacle(s.x, s.y), 'Boss 不得压在障碍上');
@@ -159,10 +164,11 @@ test('14.8 Boss 追击：朝食物移动，若干步后离食物更近且不越�
   g.reset();
   g.spawnBoss();
   g.food = { x: c.COLS - 2, y: c.ROWS - 2 };   // 把食物放到对角，逼 Boss 追过去
-  const head0 = g.boss.snake[0];
+  const b = g.bosses[0];
+  const head0 = b.snake[0];
   const dist0 = Math.abs(head0.x - g.food.x) + Math.abs(head0.y - g.food.y);
   g.updateBoss(2.0);                            // 2 秒 -> 约 8 步
-  const head1 = g.boss.snake[0];
+  const head1 = b.snake[0];
   const dist1 = Math.abs(head1.x - g.food.x) + Math.abs(head1.y - g.food.y);
   assert.ok(head0.x !== head1.x || head0.y !== head1.y, 'Boss 应当移动过');
   assert.ok(dist1 <= dist0, 'Boss 应朝食物靠近（距离不增）');
@@ -179,13 +185,14 @@ test('14.9 Boss 撞玩家 -> bossHitPlayer=true', () => {
   const head = g.snake[0];
   // Boss 头贴在玩家左侧、朝右（食物也放在右侧，诱导它向右追），下一步即撞上玩家头
   g.food = { x: head.x + 5, y: head.y };
-  g.boss = {
+  g.bosses = [{
     snake: [{ x: head.x - 1, y: head.y }, { x: head.x - 2, y: head.y }, { x: head.x - 3, y: head.y }],
     prevSnake: [{ x: head.x - 1, y: head.y }, { x: head.x - 2, y: head.y }, { x: head.x - 3, y: head.y }],
-    dir: h.DIR.right, acc: 0
-  };
+    dir: h.DIR.right, acc: 0, hp: 3, maxHp: 3, kind: 'chaser',
+    dashTimer: 99, dashWarn: 0, dashTime: 0, dashDir: h.DIR.right, hitFlash: 0
+  }];
   g.bossHitPlayer = false;
-  g.stepBoss();
+  g.stepBoss(g.bosses[0]);
   assert.strictEqual(g.bossHitPlayer, true, 'Boss 撞到玩家应置位 bossHitPlayer');
 });
 

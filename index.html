@@ -401,6 +401,105 @@
     line-height: 1.2;
   }
 
+  /* ===================== 模式选择（G 轮） ===================== */
+  .modes {
+    display: flex;
+    gap: clamp(5px, 1.2cqw, 8px);
+    width: 100%;
+  }
+  .mode-card {
+    flex: 1 1 0;
+    min-width: 0;
+    appearance: none;
+    cursor: pointer;
+    font-family: inherit;
+    color: #cbd5e1;
+    background: rgba(148,163,184,.10);
+    border: 1px solid rgba(148,163,184,.22);
+    border-radius: 12px;
+    padding: clamp(7px, 1.8cqw, 11px) clamp(4px, 1cqw, 8px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    transition: background .15s, border-color .15s, transform .1s;
+  }
+  .mode-card:hover { background: rgba(148,163,184,.18); }
+  .mode-card:active { transform: scale(.97); }
+  .mode-card.on {
+    background: rgba(74,222,128,.18);
+    border-color: rgba(74,222,128,.55);
+    color: #bbf7d0;
+  }
+  .mode-card .mi { font-size: clamp(13px, 3.2cqw, 17px); line-height: 1; }
+  .mode-card .mn { font-size: clamp(11px, 2.8cqw, 13px); font-weight: 800; letter-spacing: .5px; }
+  .mode-card .md {
+    font-size: clamp(9px, 2.1cqw, 11px);
+    font-weight: 500;
+    color: #94a3b8;
+    line-height: 1.35;
+    text-align: center;
+  }
+
+  /* ===================== 皮肤选择（G 轮） ===================== */
+  .skins {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(6px, 1.6cqw, 10px);
+    flex-wrap: wrap;
+  }
+  .skin-dot {
+    appearance: none;
+    cursor: pointer;
+    padding: 0;
+    width: clamp(22px, 5.4cqw, 30px);
+    height: clamp(22px, 5.4cqw, 30px);
+    border-radius: 50%;
+    border: 2px solid rgba(148,163,184,.35);
+    position: relative;
+    transition: transform .12s, box-shadow .15s, border-color .15s;
+  }
+  .skin-dot i {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: linear-gradient(140deg, var(--s1), var(--s3));
+  }
+  .skin-dot.on {
+    border-color: #fde68a;
+    box-shadow: 0 0 0 2px rgba(253,230,138,.32);
+    transform: scale(1.1);
+  }
+  .skin-dot.locked { cursor: not-allowed; opacity: .5; }
+  .skin-dot.locked i { filter: grayscale(1) brightness(.7); }
+  .skin-dot.locked::after {
+    content: '\u00D7';
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    font-size: clamp(11px, 2.8cqw, 14px);
+    font-weight: 800;
+    color: #e2e8f0;
+  }
+
+  /* ===================== 档案条（G 轮） ===================== */
+  .profile {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 3px 6px;
+    font-size: clamp(10px, 2.5cqw, 12px);
+    color: #94a3b8;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.4;
+  }
+  .profile b { color: #e2e8f0; font-weight: 800; }
+  .profile .pf-sep { opacity: .45; }
+
   /* ============================ 遮罩层 ============================
      关键：所有遮罩模板都使用正常文档流 flex 列布局，间距交给 gap，
      字号/间距使用 cqw（容器查询宽度单位）随画布宽度优雅缩放，
@@ -420,6 +519,7 @@
     text-align: center;
     animation: fade .18s ease;
     container-type: inline-size;
+    overflow-y: auto;            /* G 轮：开始屏多了模式/皮肤/档案，小屏可滚动 */
   }
   .overlay[hidden] { display: none; }
 
@@ -982,7 +1082,16 @@
     BOSS_SPLIT_HP: 1,        // 分裂体血量
     HAZARD_COUNT: 3,         // Boss 关的毒区数量
     HAZARD_SIZE: 2,          // 毒区边长（格）
-    HAZARD_DRIFT: 5          // 毒区每隔几秒漂移一格
+    HAZARD_DRIFT: 5,         // 毒区每隔几秒漂移一格
+
+    /* ---- G 轮：模式 / 成就 / 皮肤 / 统计 ---- */
+    TIME_ATTACK_SEC: 60,     // 限时模式的时长（秒）
+    GROW_EVERY: 1,           // 无尽 / 限时：每吃几颗增长 1 节（闯关模式固定不变长）
+    UPGRADE_EVERY_LEVEL: 3,  // 无尽模式：每升几级弹一次升级卡
+    ACH_TOAST_TIME: 3.2,     // 成就提示停留秒数
+    STORAGE_STATS: 'snake-stats.v1',
+    STORAGE_ACH: 'snake-achievements.v1',
+    STORAGE_SKIN: 'snake-skin.v1'
   };
 
   /**
@@ -1020,6 +1129,51 @@
       available: function (g) { return g.lives < g.maxLives; },
       apply: function (g) { if (g.lives < g.maxLives) g.lives++; }
     }
+  ];
+
+  /**
+   * G 轮：三种玩法模式。
+   * - stage      闯关：6 关递进，过关三选一，Boss 与毒区（原有模式）
+   * - endless    无尽：吃到就变长、速度随分数涨，撞光生命为止
+   * - timeattack 限时：60 秒冲刺，时间到就结算（算完成，不算死亡）
+   */
+  const MODES = [
+    { id: 'stage',      name: '闯关', icon: '\u2691', desc: '6 关递进 · 过关三选一 · Boss 与毒区' },
+    { id: 'endless',    name: '无尽', icon: '\u221E', desc: '吃到就变长 · 越快越险 · 撞光为止' },
+    { id: 'timeattack', name: '限时', icon: '\u23F1', desc: '60 秒冲刺 · 时间到就结算' }
+  ];
+
+  /** G 轮：成就（达成条件集中在 Game.checkAchievements 里判定） */
+  const ACHIEVEMENTS = [
+    { id: 'first',     name: '初出茅庐',   desc: '完成第一局' },
+    { id: 'score100',  name: '百分达人',   desc: '单局得分达到 100' },
+    { id: 'score500',  name: '五百俱乐部', desc: '单局得分达到 500' },
+    { id: 'score1000', name: '千分传说',   desc: '单局得分达到 1000' },
+    { id: 'combo5',    name: '连击新手',   desc: '单局达成 5 连击' },
+    { id: 'combo15',   name: '连击大师',   desc: '单局达成 15 连击' },
+    { id: 'boss1',     name: '屠龙者',     desc: '击破第一条 Boss 蛇' },
+    { id: 'bossSplit', name: '弑君者',     desc: '击破会分裂的 Boss' },
+    { id: 'clear',     name: '通关',       desc: '清空全部 6 关' },
+    { id: 'lucky',     name: '幸运儿',     desc: '吃到一次限时奖励' },
+    { id: 'speed',     name: '风驰电掣',   desc: '速度达到 13 格/秒' },
+    { id: 'long',      name: '长寿蛇',     desc: '蛇身长到 20 节' }
+  ];
+
+  /**
+   * G 轮：蛇皮肤。unlock 为 null 表示默认可用，否则需要对应成就。
+   * 配色字段与 Renderer.drawSnake 一一对应。
+   */
+  const SNAKE_SKINS = [
+    { id: 'classic', name: '青竹', unlock: null,
+      edge: '#14532d', c1: '#86efac', c2: '#34d399', c3: '#16a34a', head1: '#bbf7d0', head2: '#22c55e' },
+    { id: 'gold', name: '鎏金', unlock: 'score500',
+      edge: '#78350f', c1: '#fde68a', c2: '#fbbf24', c3: '#d97706', head1: '#fffbeb', head2: '#f59e0b' },
+    { id: 'void', name: '虚空', unlock: 'boss1',
+      edge: '#3b0764', c1: '#e9d5ff', c2: '#a855f7', c3: '#6b21a8', head1: '#f3e8ff', head2: '#9333ea' },
+    { id: 'frost', name: '霜蓝', unlock: 'combo15',
+      edge: '#083344', c1: '#cffafe', c2: '#22d3ee', c3: '#0e7490', head1: '#ecfeff', head2: '#06b6d4' },
+    { id: 'crimson', name: '赤焰', unlock: 'clear',
+      edge: '#450a0a', c1: '#fecaca', c2: '#f87171', c3: '#b91c1c', head1: '#fee2e2', head2: '#ef4444' }
   ];
 
   const DIR = {
@@ -1068,7 +1222,9 @@
       const duration = Math.max(0, Math.floor(Number(rec.duration) || 0));
       let date = rec.date;
       if (typeof date !== 'string' || !date) date = new Date().toISOString();
-      return { name: name, score: score, date: date, duration: duration };
+      // G 轮：记录所属模式（老数据没有该字段，统一按闯关处理）
+      const mode = (typeof rec.mode === 'string' && rec.mode) ? rec.mode : 'stage';
+      return { name: name, score: score, date: date, duration: duration, mode: mode };
     },
 
     /** 从 localStorage 加载排行榜 */
@@ -1159,8 +1315,143 @@
   };
 
   /* ============================================================
-   * 4. 音效（Web Audio API 代码合成，无外部音频文件）
-   *    AudioContext 必须在用户首次交互后创建 / resume
+   * 3.5 G 轮：成就 / 皮肤 / 统计（localStorage，隐私模式一律静默降级）
+   * ========================================================== */
+  const Achievements = {
+    unlocked: {},          // { 成就id: 解锁时间戳 }
+
+    load: function () {
+      this.unlocked = {};
+      const raw = Storage.get(Config.STORAGE_ACH, '');
+      if (!raw) return;
+      try {
+        const obj = JSON.parse(raw);
+        if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return;
+        for (let i = 0; i < ACHIEVEMENTS.length; i++) {
+          const id = ACHIEVEMENTS[i].id;
+          if (typeof obj[id] === 'number') this.unlocked[id] = obj[id];
+        }
+      } catch (e) {
+        this.unlocked = {};   // 脏数据 -> 当作空进度，绝不抛异常
+      }
+    },
+
+    save: function () {
+      try { window.localStorage.setItem(Config.STORAGE_ACH, JSON.stringify(this.unlocked)); }
+      catch (e) { /* 隐私模式：静默降级 */ }
+    },
+
+    has: function (id) { return !!this.unlocked[id]; },
+
+    /** 解锁一个成就；已解锁返回 false，新解锁返回 true */
+    unlock: function (id) {
+      if (this.has(id)) return false;
+      this.unlocked[id] = Date.now();
+      this.save();
+      return true;
+    },
+
+    count: function () { return Object.keys(this.unlocked).length; },
+    total: function () { return ACHIEVEMENTS.length; },
+
+    find: function (id) {
+      for (let i = 0; i < ACHIEVEMENTS.length; i++) {
+        if (ACHIEVEMENTS[i].id === id) return ACHIEVEMENTS[i];
+      }
+      return null;
+    }
+  };
+
+  const Skins = {
+    current: 'classic',
+
+    load: function () {
+      const id = Storage.get(Config.STORAGE_SKIN, 'classic');
+      this.current = this.find(id) ? id : 'classic';
+    },
+
+    save: function () { Storage.set(Config.STORAGE_SKIN, this.current); },
+
+    find: function (id) {
+      for (let i = 0; i < SNAKE_SKINS.length; i++) {
+        if (SNAKE_SKINS[i].id === id) return SNAKE_SKINS[i];
+      }
+      return null;
+    },
+
+    /** 皮肤是否可用：无解锁条件，或对应成就已拿到 */
+    isUnlocked: function (id) {
+      const skin = this.find(id);
+      if (!skin) return false;
+      if (!skin.unlock) return true;
+      return Achievements.has(skin.unlock);
+    },
+
+    /** 切换皮肤；未解锁或不存在则返回 false */
+    select: function (id) {
+      if (!this.isUnlocked(id)) return false;
+      this.current = id;
+      this.save();
+      return true;
+    },
+
+    currentSkin: function () {
+      const s = this.find(this.current);
+      if (s && this.isUnlocked(s.id)) return s;
+      return SNAKE_SKINS[0];            // 兜底：始终有一个可用皮肤
+    }
+  };
+
+  const Stats = {
+    DEFAULTS: {
+      games: 0, wins: 0, totalScore: 0, totalFoods: 0,
+      totalDuration: 0, bestCombo: 0, bossKills: 0
+    },
+    data: null,
+
+    load: function () {
+      this.data = Object.assign({}, this.DEFAULTS);
+      const raw = Storage.get(Config.STORAGE_STATS, '');
+      if (!raw) return;
+      try {
+        const obj = JSON.parse(raw);
+        if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return;
+        for (const k in this.DEFAULTS) {
+          if (!Object.prototype.hasOwnProperty.call(this.DEFAULTS, k)) continue;
+          const v = Number(obj[k]);
+          if (isFinite(v) && v >= 0) this.data[k] = Math.floor(v);
+        }
+      } catch (e) {
+        this.data = Object.assign({}, this.DEFAULTS);
+      }
+    },
+
+    save: function () {
+      try { window.localStorage.setItem(Config.STORAGE_STATS, JSON.stringify(this.data)); }
+      catch (e) { /* 隐私模式：静默降级 */ }
+    },
+
+    /** 一局结束时合并本局数据 */
+    merge: function (run) {
+      if (!this.data) this.load();
+      this.data.games++;
+      if (run.win) this.data.wins++;
+      this.data.totalScore += run.score || 0;
+      this.data.totalFoods += run.foods || 0;
+      this.data.totalDuration += run.duration || 0;
+      this.data.bossKills += run.bossKills || 0;
+      if ((run.bestCombo || 0) > this.data.bestCombo) this.data.bestCombo = run.bestCombo;
+      this.save();
+    },
+
+    reset: function () {
+      this.data = Object.assign({}, this.DEFAULTS);
+      this.save();
+    }
+  };
+
+  /* ============================================================
+   * 4. 音效（Web Audio 合成，无外部音频文件）
    * ========================================================== */
   const Sfx = {
     ctx: null,
@@ -1284,6 +1575,15 @@
       }
     },
 
+    /** G 轮：解锁成就 —— 明亮的上行三音 + 一记高音收尾 */
+    achievement: function () {
+      const notes = [659.25, 830.61, 987.77];
+      for (let i = 0; i < notes.length; i++) {
+        this.tone({ freq: notes[i], type: 'triangle', dur: 0.16, gain: 0.10, delay: i * 0.08 });
+      }
+      this.tone({ freq: 1318.51, type: 'sine', dur: 0.24, gain: 0.07, delay: 0.26 });
+    },
+
     /** F 轮：撞中 Boss 弱点 —— 清脆的金属敲击 */
     bossHit: function () {
       this.tone({ freq: 1180, endFreq: 760, type: 'square', dur: 0.09, gain: 0.10 });
@@ -1341,6 +1641,18 @@
     hazards: [],               // 毒区 [{x,y,w,h,timer}]，Boss 关独有
     bossHitPlayer: false,      // Boss 本帧撞到玩家（主循环据此判受击）
     _lastBossHit: null,        // 主循环用：{x,y,kind,killed,left}，击打/击破反馈
+
+    /* ---- G 轮：模式 / 成就 / 统计 ---- */
+    mode: 'stage',             // 'stage' 闯关 | 'endless' 无尽 | 'timeattack' 限时
+    timeLeft: 0,               // 限时模式剩余秒数
+    timeUp: false,             // 限时模式时间到（主循环据此结算，不算死亡）
+    achToast: null,            // 画布内成就提示 {name,desc,time,max}
+    foodEaten: 0,              // 本局吃到的食物数（无尽/限时用来算变长）
+    runFoods: 0,               // 本局吃到的食物总数（累计统计用）
+    runBossKills: 0,           // 本局击破 Boss 数
+    _gotBonus: false,          // 本局吃到过限时奖励
+    _killedSplitter: false,    // 本局击破过分裂者
+    _runDuration: 0,           // 本局时长（秒），由 App 在结算前写入
     stageBannerText: '',       // 关卡横幅文案（如「第 3 关」）
     stageBannerTime: 0,        // 关卡横幅剩余显示时间（秒）
 
@@ -1431,6 +1743,16 @@
       this.pendingUpgrades = null;
       this.awaitingUpgrade = false;
       this._lastGain = 0;
+
+      /* ---- G 轮：模式相关（stageMode 由 App.start/restart 按 mode 同步）---- */
+      this.timeLeft = (this.mode === 'timeattack') ? Config.TIME_ATTACK_SEC : 0;
+      this.timeUp = false;
+      this.foodEaten = 0;
+      this.runFoods = 0;
+      this.runBossKills = 0;
+      this._gotBonus = false;
+      this._killedSplitter = false;
+      this._runDuration = 0;
 
       this.placeFood();
     },
@@ -1731,6 +2053,8 @@
       const killed = b.hp <= 0;
       let left = this.bosses.length;
       if (killed) {
+        this.runBossKills++;                     // G 轮：统计与成就
+        if (b.kind === 'splitter') this._killedSplitter = true;
         // 先移除本体再分裂：否则 spawnBossAt 会把本体的身体当成障碍物，
         // 导致分裂体一处都放不下（本体已死，它占的格子本该立刻释放）
         this.removeBoss(b);
@@ -1769,10 +2093,15 @@
       return false;
     },
 
-    /** 毒区的所有格子是否与蛇 / Boss / 已有毒区冲突 */
+    /**
+     * 毒区覆盖的所有格子是否与蛇 / Boss / 食物 / 已有毒区冲突。
+     * 注意必须逐格检查整片区域：毒区是 2×2，左上角不冲突不代表整片不冲突
+     * （食物落在右下角时同样会把玩家逼进毒区）。
+     */
     _hazardBlocked: function (x, y, w, h) {
       for (let a = x; a < x + w; a++) {
         for (let b = y; b < y + h; b++) {
+          if (this.food.x === a && this.food.y === b) return true;
           if (this.snakeOccupies(a, b) || this.bossAt(a, b) || this.inHazard(a, b)) return true;
         }
       }
@@ -2001,6 +2330,7 @@
         this.speedBuffTime = Config.SPECIAL_ICE_TIME;
       } else if (sp.type === 'bonus') {
         this.addScore(Math.round(Config.SPECIAL_BONUS_SCORE * this.scoreMul));
+        this._gotBonus = true;              // G 轮：成就「幸运儿」
       } else if (sp.type === 'shield') {
         this.invincible = Config.SHIELD_TIME;
       }
@@ -2042,6 +2372,19 @@
         if (this.special.ttl <= 0) this.special = null;
       }
       if (this.stageBannerTime > 0) this.stageBannerTime -= dt;
+      // G 轮：限时模式倒计时（时间到由主循环结算，不算死亡）
+      if (this.mode === 'timeattack' && this.state === STATE.PLAYING) {
+        this.timeLeft -= dt;
+        if (this.timeLeft <= 0) {
+          this.timeLeft = 0;
+          this.timeUp = true;
+        }
+      }
+      // G 轮：成就提示停留计时（暂停时同样冻结）
+      if (this.achToast) {
+        this.achToast.time -= dt;
+        if (this.achToast.time <= 0) this.achToast = null;
+      }
       // F 轮：Boss 与毒区各自按真实时间推进（PLAYING 之外不调用，暂停时随画面冻结）
       if (this.state === STATE.PLAYING) {
         if (this.bosses.length) this.updateBoss(dt);
@@ -2054,6 +2397,62 @@
           this.spawnSpecial();
         }
       }
+    },
+
+    /** G 轮：切换玩法模式（开始屏选择）；非法值一律兜底为闯关 */
+    setMode: function (mode) {
+      for (let i = 0; i < MODES.length; i++) {
+        if (MODES[i].id === mode) { this.mode = mode; return this.mode; }
+      }
+      this.mode = 'stage';
+      return this.mode;
+    },
+
+    /**
+     * G 轮：无尽 / 限时模式是否该因吃食物变长。
+     * 判据用 mode 而不是 stageMode：stageMode 只在走 App.start/restart 时才被同步，
+     * 直接调 reset() 的场合它保持 false，会误判成「非闯关」而让蛇白白变长。
+     */
+    shouldGrow: function () {
+      if (this.mode === 'stage') return false;
+      return (this.foodEaten % Config.GROW_EVERY) === 0;
+    },
+
+    /** G 轮：限时模式剩余秒数（非限时返回 0） */
+    isTimeAttack: function () { return this.mode === 'timeattack'; },
+
+    /**
+     * G 轮：检查并解锁成就。
+     * 只依赖「本局 + 累计统计数据」，所以在得分变化、击破、结算等节点都能安全调用。
+     */
+    checkAchievements: function () {
+      const got = [];
+      const tryUnlock = function (id) { if (Achievements.unlock(id)) got.push(id); };
+
+      if (this.score >= 100)  tryUnlock('score100');
+      if (this.score >= 500)  tryUnlock('score500');
+      if (this.score >= 1000) tryUnlock('score1000');
+      if (this.comboBest >= 5)  tryUnlock('combo5');
+      if (this.comboBest >= 15) tryUnlock('combo15');
+      if (this.runBossKills >= 1) tryUnlock('boss1');
+      if (this._killedSplitter)  tryUnlock('bossSplit');
+      if (this.win && this.stageMode) tryUnlock('clear');
+      if (this._gotBonus) tryUnlock('lucky');
+      if (this.tps() >= Config.MAX_TPS) tryUnlock('speed');
+      if (this.snake.length >= 20) tryUnlock('long');
+      // 「完成第一局」依赖累计数据，必须在 Stats.merge 之后才成立
+      if (Stats.data && Stats.data.games >= 1) tryUnlock('first');
+
+      for (let i = 0; i < got.length; i++) this.showAchievement(got[i]);
+      return got;
+    },
+
+    /** G 轮：弹出成就提示（同一时刻只展示最新一个） */
+    showAchievement: function (id) {
+      const a = Achievements.find(id);
+      if (!a) return;
+      this.achToast = { name: a.name, desc: a.desc, time: Config.ACH_TOAST_TIME, max: Config.ACH_TOAST_TIME };
+      Sfx.achievement();
     },
 
     /** E 轮：当前连击倍率——第 N 连 = 1 + (N-1) × COMBO_STEP，封顶 COMBO_MAX_MUL */
@@ -2070,6 +2469,16 @@
       const gain = Math.round(Config.SCORE_PER_FOOD * this.comboMultiplier() * this.scoreMul);
       this.addScore(gain);
       this._lastGain = gain;
+
+      // G 轮：无尽模式速度随分数提升，每升 UPGRADE_EVERY_LEVEL 级弹一次升级卡
+      // （闯关模式的 level 由 advanceStage 递增，这里不碰）
+      if (this.mode === 'endless') {
+        const lv = Math.floor(this.score / Config.SCORE_PER_LEVEL);
+        if (lv > this.level) {
+          this.level = lv;
+          if (lv % Config.UPGRADE_EVERY_LEVEL === 0) this.pendingUpgrades = this.rollUpgrades();
+        }
+      }
       return gain;
     },
 
@@ -2174,6 +2583,8 @@
       if (this.food.x === nx && this.food.y === ny) {
         this.gainFoodScore();
         this.headPulse = 1;
+        this.foodEaten++;
+        this.runFoods++;
         this.stageFoods++;
         // 关卡推进（仅闯关模式）：吃满目标食物即过关
         if (this.stageMode && this.stageFoods >= this.stageTarget) {
@@ -2193,7 +2604,9 @@
           this.win = true;
           return 'win';
         }
-        this.snake.pop();                    // 等长移动
+        // G 轮：无尽 / 限时吃到就变长；闯关模式变长交给过关，这里仍是等长移动
+        if (this.shouldGrow()) return 'eat';
+        this.snake.pop();
         return 'eat';
       }
 
@@ -2225,7 +2638,19 @@
       this.combo = 0;
       this.comboTimer = 0;
       this.pendingUpgrades = null;
-      this.awaitingUpgrade = false;
+      // G 轮：成就先按本局数据结算一次，合并统计后再结算一次
+      // （「完成第一局」依赖累计的 Stats.data.games）
+      this.checkAchievements();
+      Stats.merge({
+        win: this.win,
+        score: this.score,
+        foods: this.runFoods,
+        duration: this._runDuration,
+        bestCombo: this.comboBest,
+        bossKills: this.runBossKills
+      });
+      this.checkAchievements();
+
       if (this.score > this.best) {
         this.best = this.score;
         this.isRecord = true;
@@ -2414,6 +2839,8 @@
 
       // F 轮：Boss 血条画在 restore 之后 —— 不跟随撞击震屏一起抖
       this.drawBossHealth();
+      // G 轮：成就提示同样画在 restore 之后
+      this.drawAchievement();
     },
 
     /** 静态底色 + 中心柔光（仅在离屏烘焙时调用） */
@@ -2714,16 +3141,19 @@
       ctx.lineJoin = 'round';
       ctx.lineCap = 'round';
 
+      // G 轮：配色取自当前皮肤（未解锁的皮肤不会被选中，见 Skins.currentSkin）
+      const skin = Skins.currentSkin();
+
       // 2) 深色描边（轮廓）
-      ctx.strokeStyle = '#14532d';
+      ctx.strokeStyle = skin.edge;
       ctx.lineWidth = cell * 0.9;
       ctx.stroke(path);
 
-      // 3) 主体渐变：蛇头浅绿 -> 蛇尾深绿
+      // 3) 主体渐变：蛇头浅 -> 蛇尾深
       const grad = ctx.createLinearGradient(pts[0].x, pts[0].y, pts[n - 1].x, pts[n - 1].y);
-      grad.addColorStop(0, '#86efac');
-      grad.addColorStop(0.45, '#34d399');
-      grad.addColorStop(1, '#16a34a');
+      grad.addColorStop(0, skin.c1);
+      grad.addColorStop(0.45, skin.c2);
+      grad.addColorStop(1, skin.c3);
       ctx.strokeStyle = grad;
       ctx.lineWidth = cell * 0.74;
       ctx.stroke(path);
@@ -2752,12 +3182,13 @@
       }
 
       // 5) 蛇头：眼睛 + 嘴巴
-      this.drawHead(pts[0], pts[Math.min(1, n - 1)]);
+      this.drawHead(pts[0], pts[Math.min(1, n - 1)], skin);
     },
 
-    drawHead: function (head, neck) {
+    drawHead: function (head, neck, skinIn) {
       const ctx = this.ctx;
       const cell = this.cell;
+      const skin = skinIn || Skins.currentSkin();
       const pulse = 1 + Game.headPulse * 0.16;
 
       let dx = head.x - neck.x;
@@ -2776,8 +3207,8 @@
       // 头部底色（略大于身体，形成圆润的脑袋）
       const hr = cell * 0.46 * pulse;
       const g = ctx.createRadialGradient(-hr * 0.3, -hr * 0.3, hr * 0.1, 0, 0, hr);
-      g.addColorStop(0, '#bbf7d0');
-      g.addColorStop(1, '#4ade80');
+      g.addColorStop(0, skin.head1);
+      g.addColorStop(1, skin.head2);
       ctx.fillStyle = g;
       ctx.beginPath();
       ctx.arc(0, 0, hr, 0, Math.PI * 2);
@@ -2994,6 +3425,50 @@
     },
 
     /**
+     * G 轮：成就提示 —— 画布右上角滑入的小卡片，停留 ACH_TOAST_TIME 秒。
+     * 用 Canvas 而不是 DOM：不新增 HTML 结构，也就不会破坏
+     * 「遮罩面板全部走文档流」这条既有约束。
+     */
+    drawAchievement: function () {
+      const t = Game.achToast;
+      if (!t) return;
+      const ctx = this.ctx;
+      const size = this.size;
+
+      // 前 0.25s 从右侧滑入，末 0.45s 滑出
+      const elapsed = t.max - t.time;
+      let offset = 0;
+      if (elapsed < 0.25) offset = (1 - elapsed / 0.25) * size * 0.14;
+      else if (t.time < 0.45) offset = (1 - t.time / 0.45) * size * 0.14;
+      const alpha = Math.max(0, Math.min(1, t.time / 0.45));
+      if (alpha <= 0) return;
+
+      const w = size * 0.54;
+      const h = size * 0.095;
+      const x = size - w - size * 0.03 + offset;
+      const y = size * 0.05 + h + size * 0.03;   // 让开画布顶部的 Boss 血条
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = 'rgba(15,23,42,0.9)';
+      roundRect(ctx, x, y, w, h, h * 0.28);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(250,204,21,0.65)';
+      ctx.lineWidth = Math.max(1, size * 0.004);
+      ctx.stroke();
+
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#fde68a';
+      ctx.font = '800 ' + Math.round(size * 0.03) + 'px ' + getFontFamily();
+      ctx.fillText('\u2605 成就解锁 · ' + t.name, x + h * 0.32, y + h * 0.36);
+      ctx.fillStyle = 'rgba(226,232,240,0.82)';
+      ctx.font = '500 ' + Math.round(size * 0.022) + 'px ' + getFontFamily();
+      ctx.fillText(t.desc, x + h * 0.32, y + h * 0.72);
+      ctx.restore();
+    },
+
+    /**
      * F 轮：Boss 血条 —— 画布顶部中央，不受震屏影响。
      * 多条 Boss（分裂体）时显示合计血量与条数。
      */
@@ -3129,6 +3604,14 @@
   }
 
   /** 转义文本，避免用户名破坏面板 HTML 结构 */
+  /** G 轮：模式 id -> 中文名（老记录没有 mode 字段时按闯关显示） */
+  function modeName(id) {
+    for (let i = 0; i < MODES.length; i++) {
+      if (MODES[i].id === id) return MODES[i].name;
+    }
+    return '闯关';
+  }
+
   function escapeHtml(s) {
     return String(s == null ? '' : s)
       .replace(/&/g, '&amp;')
@@ -3255,14 +3738,16 @@
       const pct = span <= 0 ? 100 : ((Game.tps() - Config.BASE_TPS) / span) * 100;
       this.els.speedFill.style.width = Math.max(4, Math.min(100, pct)).toFixed(1) + '%';
 
-      // D 轮：关卡指示
+      // D 轮：关卡指示（G 轮：限时模式下改显示剩余时间）
       if (this.els.stageEl) {
-        this.els.stageEl.textContent = '第 ' + Game.stage + ' 关';
+        this.els.stageEl.textContent = Game.isTimeAttack()
+          ? ('剩余 ' + Game.timeLeft.toFixed(1) + 's')
+          : ('第 ' + Game.stage + ' 关');
       }
       if (this.els.stageProgEl) {
-        this.els.stageProgEl.textContent = Game.stageMode
-          ? ('食物 ' + Game.stageFoods + '/' + Game.stageTarget)
-          : '';
+        this.els.stageProgEl.textContent = Game.isTimeAttack()
+          ? '限时冲刺'
+          : (Game.stageMode ? ('食物 ' + Game.stageFoods + '/' + Game.stageTarget) : '');
       }
 
       // E 轮：生命（满的实心 ♥，已消耗的空心 ♡；剩 1 点时脉动告警）
@@ -3347,6 +3832,9 @@
           '撞毁只扣 <b>1</b> 点生命（共 ' + Config.START_LIVES + ' 点），扣光才结束；连着吃可叠 <b>连击倍率</b>。<br>' +
           '每过一关从三张 <b>升级卡</b> 中选一张；第 ' + Config.BOSS_FIRST_STAGE + ' / ' +
           Config.TOTAL_STAGES + ' 关迎战 <b>Boss 蛇</b>，撞中它的尾巴即可击破。</p>' +
+          this.renderModes() +
+          this.renderSkins() +
+          this.renderProfile() +
           '<button class="btn" id="ovBtn" type="button">开始游戏</button>' +
           '<p class="hint">按 空格 / 点击屏幕 开始</p>' +
           this.renderLeaderboardBlock();
@@ -3363,7 +3851,8 @@
       } else if (s === STATE.GAMEOVER) {
         const title = Game.win ? '通关啦！' : '游戏结束';
         let reason;
-        if (Game.win)                           reason = '你清空了全部 ' + Config.TOTAL_STAGES + ' 关，这不太科学……';
+        if (Game.mode === 'timeattack')          reason = '时间到！' + Config.TIME_ATTACK_SEC + ' 秒内拿到 <b>' + Game.score + '</b> 分。';
+        else if (Game.win)                       reason = '你清空了全部 ' + Config.TOTAL_STAGES + ' 关，这不太科学……';
         else if (Game.deathReason === 'wall')     reason = '撞到墙壁了，注意提前转向。';
         else if (Game.deathReason === 'obstacle') reason = '撞到障碍物了，绕着走。';
         else if (Game.deathReason === 'boss')     reason = '被 Boss 蛇撞上了，要撞就撞它的尾巴。';
@@ -3435,6 +3924,34 @@
         });
       }
 
+      // G 轮：开始屏模式选择
+      for (let i = 0; i < MODES.length; i++) {
+        const mbtn = document.getElementById('mode' + i);
+        if (!mbtn) continue;
+        (function (id) {
+          mbtn.addEventListener('click', function (e) {
+            if (e && e.stopPropagation) e.stopPropagation();
+            Game.setMode(id);
+            UI.syncOverlay();
+          });
+        })(MODES[i].id);
+      }
+
+      // G 轮：开始屏皮肤选择（未解锁的 Skins.select 会直接返回 false）
+      for (let i = 0; i < SNAKE_SKINS.length; i++) {
+        const sbtn = document.getElementById('skin' + i);
+        if (!sbtn) continue;
+        (function (id) {
+          sbtn.addEventListener('click', function (e) {
+            if (e && e.stopPropagation) e.stopPropagation();
+            if (Skins.select(id)) {
+              Sfx.start();
+              UI.syncOverlay();
+            }
+          });
+        })(SNAKE_SKINS[i].id);
+      }
+
       // 开始屏：清空按钮（二次确认）
       const clearBtn = document.getElementById('lbClear');
       if (clearBtn) {
@@ -3468,6 +3985,53 @@
           self.onSaveName();
         });
       }
+    },
+
+    /** G 轮：模式选择（开始屏） */
+    renderModes: function () {
+      let out = '<div class="modes">';
+      for (let i = 0; i < MODES.length; i++) {
+        const m = MODES[i];
+        const on = (Game.mode === m.id) ? ' on' : '';
+        out +=
+          '<button type="button" class="mode-card' + on + '" id="mode' + i + '" title="' + escapeHtml(m.desc) + '">' +
+            '<span class="mi">' + m.icon + '</span>' +
+            '<span class="mn">' + m.name + '</span>' +
+          '</button>';
+      }
+      return out + '</div>';
+    },
+
+    /** G 轮：皮肤选择（开始屏）—— 未解锁的灰显且不可点 */
+    renderSkins: function () {
+      let out = '<div class="skins">';
+      for (let i = 0; i < SNAKE_SKINS.length; i++) {
+        const sk = SNAKE_SKINS[i];
+        const unlocked = Skins.isUnlocked(sk.id);
+        const cls = 'skin-dot' + (Skins.current === sk.id ? ' on' : '') + (unlocked ? '' : ' locked');
+        const cond = sk.unlock ? Achievements.find(sk.unlock) : null;
+        const tip = unlocked ? sk.name : ('解锁条件：' + (cond ? cond.name : '成就'));
+        out +=
+          '<button type="button" class="' + cls + '" id="skin' + i + '" title="' + escapeHtml(tip) + '">' +
+            '<i style="--s1:' + sk.c1 + ';--s3:' + sk.c3 + '"></i>' +
+          '</button>';
+      }
+      return out + '</div>';
+    },
+
+    /** G 轮：档案条 —— 累计统计 + 成就进度 */
+    renderProfile: function () {
+      const st = Stats.data || Stats.DEFAULTS;
+      return '' +
+        '<div class="profile">' +
+          '<span class="pf-item"><b>' + st.games + '</b> 局</span>' +
+          '<span class="pf-sep">·</span>' +
+          '<span class="pf-item">最高连击 <b>' + st.bestCombo + '</b></span>' +
+          '<span class="pf-sep">·</span>' +
+          '<span class="pf-item">击破 Boss <b>' + st.bossKills + '</b></span>' +
+          '<span class="pf-sep">·</span>' +
+          '<span class="pf-item">成就 <b>' + Achievements.count() + '/' + Achievements.total() + '</b></span>' +
+        '</div>';
     },
 
     /** E 轮：渲染三张升级卡（带 id，便于测试与键盘/点击双通道选择） */
@@ -3537,7 +4101,8 @@
               '<span class="lb-ranknum">' + rankIcon + '</span>' +
               '<span class="lb-name">' + escapeHtml(e.name) + '</span>' +
               '<span class="lb-score">' + e.score + '</span>' +
-              '<span class="lb-meta">' + formatLbDate(e.date) + ' · ' + formatLbDuration(e.duration) + '</span>' +
+              '<span class="lb-meta">' + formatLbDate(e.date) + ' · ' + formatLbDuration(e.duration) +
+                ' · ' + modeName(e.mode) + '</span>' +
             '</li>';
         }
       }
@@ -3758,6 +4323,9 @@
     init: function () {
       Game.init();
       Leaderboard.load();
+      Achievements.load();          // G 轮
+      Skins.load();
+      Stats.load();
       Renderer.init(document.getElementById('game'));
       UI.init();
       Input.init();
@@ -3813,7 +4381,8 @@
 
     start: function () {
       if (Game.state === STATE.READY || Game.state === STATE.GAMEOVER) {
-        Game.stageMode = true;        // 闯关模式：真实开局即开启（D 轮）
+        // G 轮：是否走闯关逻辑（关卡/Boss/毒区）由所选模式决定
+        Game.stageMode = (Game.mode === 'stage');
         Game.reset();
       }
       Game.state = STATE.PLAYING;
@@ -3830,16 +4399,21 @@
      * 结束一局时把成绩写入排行榜（默认名 Ply），并记住本局记录用于后续改名。
      * 兼容隐私模式：localStorage 写入失败时静默降级，不抛异常。
      */
-    commitScore: function () {
-      const end = Date.now();
-      const duration = this.gameStart
-        ? Math.max(0, Math.floor((end - this.gameStart) / 1000))
+    /** 本局已进行的秒数 */
+    runDuration: function () {
+      return this.gameStart
+        ? Math.max(0, Math.floor((Date.now() - this.gameStart) / 1000))
         : 0;
+    },
+
+    commitScore: function () {
+      const duration = this.runDuration();
       const stored = Leaderboard.add({
         name: 'Ply',
         score: Game.score,
         date: new Date().toISOString(),
-        duration: duration
+        duration: duration,
+        mode: Game.mode            // G 轮：区分三种模式的成绩
       });
       Leaderboard.lastRecord = stored;
     },
@@ -3861,7 +4435,7 @@
     },
 
     restart: function () {
-      Game.stageMode = true;          // 闯关模式：重开也开启（D 轮）
+      Game.stageMode = (Game.mode === 'stage');   // G 轮：同上
       Game.reset();
       Game.state = STATE.PLAYING;
       this.gameStart = Date.now();
@@ -3928,6 +4502,7 @@
 
     /** 结束一局：结算、音效、震屏 */
     endGame: function () {
+      Game._runDuration = this.runDuration();   // G 轮：累计统计要用到
       Game.gameOver();
       this.commitScore();
       Fx.shakeScreen();
@@ -3968,6 +4543,13 @@
 
         // 真实时间推进 buff / 特殊食物 TTL / 自动生成（暂停态由 B 轮逻辑跳过，画面冻结）
         Game.updateTimers(dt);
+        // G 轮：限时模式时间到 -> 直接结算（这是"完成"而不是死亡）
+        if (Game.timeUp && Game.state === STATE.PLAYING) {
+          Game.timeUp = false;
+          Game.deathReason = 'timeup';
+          this.endGame();
+        }
+
         // Boss 蛇本帧撞到玩家 -> E 轮改为受击（扣 1 点生命），扣光才判死
         if (Game.bossHitPlayer && Game.state === STATE.PLAYING) {
           Game.bossHitPlayer = false;
@@ -4070,6 +4652,8 @@
         renderAlpha = this.alpha;
         UI.updateBuff();
         UI.updateCombo();
+        // G 轮：限时模式倒计时每帧都在变，需要跟着刷新 HUD
+        if (Game.isTimeAttack()) UI.updateHud();
       } else {
         // 非 PLAYING 态：累加器/alpha 保持不变（暂停时不清，resume 时再清），
         // 这样切到后台再回来时不会因为长时间 dt 累加而触发补算。

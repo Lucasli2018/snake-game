@@ -966,7 +966,23 @@
     COMBO_MAX_MUL: 3,        // 连击倍率上限
     SHIELD_TIME: 6,          // 护盾果提供的免伤秒数
     SHIELD_TTL: 8,           // 护盾果在场上停留秒数
-    CALM_TPS: 0.8            // 「稳如老狗」每层降低的基础速度（格/秒）
+    CALM_TPS: 0.8,           // 「稳如老狗」每层降低的基础速度（格/秒）
+
+    /* ---- F 轮：Boss 进化（血条 / 多形态 / 毒区地形）---- */
+    BOSS_HP_BASE: 3,         // Boss 基础血量（撞中尾巴扣 1 点）
+    BOSS_HP_STEP: 1,         // 每往后一个 Boss 关，血量 +1
+    BOSS_KILL_SCORE: 60,     // 击破一条 Boss 的得分（吃贪婪倍率）
+    BOSS_HIT_FLASH: 0.35,    // Boss 被击中后的闪白时长（秒）
+    BOSS_DASH_INTERVAL: 3.2, // 冲刺型：两次冲刺之间的间隔（秒）
+    BOSS_DASH_WARN: 0.45,    // 冲刺前的预警时长（锁定方向、身体发亮）
+    BOSS_DASH_TIME: 0.85,    // 冲刺持续时长（秒）
+    BOSS_DASH_MUL: 2.4,      // 冲刺期间的速度倍率
+    BOSS_SPLIT_COUNT: 2,     // 分裂者被击破后分裂出的小蛇数量
+    BOSS_SPLIT_LEN: 4,       // 分裂体长度（节）
+    BOSS_SPLIT_HP: 1,        // 分裂体血量
+    HAZARD_COUNT: 3,         // Boss 关的毒区数量
+    HAZARD_SIZE: 2,          // 毒区边长（格）
+    HAZARD_DRIFT: 5          // 毒区每隔几秒漂移一格
   };
 
   /**
@@ -1268,6 +1284,19 @@
       }
     },
 
+    /** F 轮：撞中 Boss 弱点 —— 清脆的金属敲击 */
+    bossHit: function () {
+      this.tone({ freq: 1180, endFreq: 760, type: 'square', dur: 0.09, gain: 0.10 });
+      this.noise(0.08, 0.07, 0.002);
+    },
+
+    /** F 轮：击破 Boss —— 下行轰鸣 + 噪声爆裂 */
+    bossDown: function () {
+      this.tone({ freq: 320, endFreq: 60, type: 'sawtooth', dur: 0.5, gain: 0.16 });
+      this.tone({ freq: 160, endFreq: 42, type: 'square', dur: 0.42, gain: 0.11, delay: 0.03 });
+      this.noise(0.36, 0.16, 0.01);
+    },
+
     /** E 轮：过关弹出升级卡——两声提示，告知"该做选择了" */
     offer: function () {
       this.tone({ freq: 660, type: 'sine', dur: 0.1, gain: 0.10 });
@@ -1307,9 +1336,11 @@
     stageFoods: 0,             // 当前关已吃到的食物数
     stageTarget: 0,            // 当前关目标食物数（吃满即过关）
     obstacles: [],             // 障碍物列表 [{x,y}]
-    boss: null,                // Boss 蛇对象 {snake,prevSnake,dir,acc} 或 null
-    bossAcc: 0,                // Boss 移动累加器（ms）
-    bossHitPlayer: false,      // Boss 本帧撞到玩家（主循环据此判死）
+    /* ---- F 轮：Boss 进化（bosses 为数组，支持分裂体共存）---- */
+    bosses: [],                // [{snake,prevSnake,dir,acc,hp,maxHp,kind,dashTimer,dashWarn,dashTime,dashDir,hitFlash}]
+    hazards: [],               // 毒区 [{x,y,w,h,timer}]，Boss 关独有
+    bossHitPlayer: false,      // Boss 本帧撞到玩家（主循环据此判受击）
+    _lastBossHit: null,        // 主循环用：{x,y,kind,killed,left}，击打/击破反馈
     stageBannerText: '',       // 关卡横幅文案（如「第 3 关」）
     stageBannerTime: 0,        // 关卡横幅剩余显示时间（秒）
 
@@ -1378,9 +1409,10 @@
       this.stageFoods = 0;
       this.stageTarget = Config.STAGE_BASE_TARGET;
       this.obstacles = [];
-      this.boss = null;
-      this.bossAcc = 0;
+      this.bosses = [];
+      this.hazards = [];
       this.bossHitPlayer = false;
+      this._lastBossHit = null;
       this.stageBannerText = '';
       this.stageBannerTime = 0;
 
@@ -1440,6 +1472,15 @@
       for (let i = 0; i < this.obstacles.length; i++) {
         this.occupied[this.obstacles[i].y * Config.COLS + this.obstacles[i].x] = 1;
       }
+      // F 轮：毒区也算占用 —— 食物刷在毒区里等于逼玩家去送死
+      for (let i = 0; i < this.hazards.length; i++) {
+        const hz = this.hazards[i];
+        for (let a = hz.x; a < hz.x + hz.w; a++) {
+          for (let b = hz.y; b < hz.y + hz.h; b++) {
+            this.occupied[b * Config.COLS + a] = 1;
+          }
+        }
+      }
       const total = Config.COLS * Config.ROWS;
       let free = 0;
       for (let i = 0; i < total; i++) {
@@ -1471,6 +1512,22 @@
       // 障碍物也占位
       for (let i = 0; i < this.obstacles.length; i++) {
         this.occupied[this.obstacles[i].y * Config.COLS + this.obstacles[i].x] = 1;
+      }
+      // F 轮：Boss 蛇身同样占位（毒区不该压在 Boss 身上）
+      for (let k = 0; k < this.bosses.length; k++) {
+        const bs = this.bosses[k].snake;
+        for (let i = 0; i < bs.length; i++) {
+          this.occupied[bs[i].y * Config.COLS + bs[i].x] = 1;
+        }
+      }
+      // F 轮：毒区同样占位（特殊食物不该刷在毒区里）
+      for (let i = 0; i < this.hazards.length; i++) {
+        const hz = this.hazards[i];
+        for (let a = hz.x; a < hz.x + hz.w; a++) {
+          for (let b = hz.y; b < hz.y + hz.h; b++) {
+            this.occupied[b * Config.COLS + a] = 1;
+          }
+        }
       }
       const total = Config.COLS * Config.ROWS;
       let free = 0;
@@ -1561,12 +1618,80 @@
              (stage - Config.BOSS_FIRST_STAGE) % Config.BOSS_EVERY === 0;
     },
 
+    /** 第 stage 关是第几个 Boss 关（首个 Boss 关返回 0） */
+    bossStageIndex: function (stage) {
+      return Math.floor((stage - Config.BOSS_FIRST_STAGE) / Config.BOSS_EVERY);
+    },
+
+    /**
+     * F 轮：该关的 Boss 形态。
+     * - chaser   追猎者：D 轮原行为，一路追食物
+     * - splitter 分裂者：更长的蛇，被击破后分裂出若干条 dasher 小蛇
+     * - dasher   游猎者：分裂体，平时追击，每隔几秒朝玩家直线冲刺一次
+     */
+    bossKindFor: function (stage) {
+      // 非 Boss 关（例如直接调 spawnBoss 做测试）一律按追猎者处理
+      if (!this.isBossStage(stage)) return 'chaser';
+      return this.bossStageIndex(stage) === 0 ? 'chaser' : 'splitter';
+    },
+
+    /** F 轮：Boss 形态的中文名（横幅与血条用） */
+    bossName: function (kind) {
+      if (kind === 'chaser') return '追猎者';
+      if (kind === 'splitter') return '分裂者';
+      return '游猎者';
+    },
+
+    /**
+     * F 轮：在 (sx,sy) 处沿某个合法方向铺一条 len 节的 Boss 蛇。
+     * 四个方向都试一遍，空间不足则返回 null（不生成，不影响通关）。
+     */
+    spawnBossAt: function (sx, sy, kind, len, hp) {
+      const dirs = [DIR.right, DIR.left, DIR.down, DIR.up];
+      for (let d = 0; d < dirs.length; d++) {
+        const dir = dirs[d];
+        const cells = [];
+        let ok = true;
+        // 必须从远端往回铺：cells[0] 是头，身体要落在头的后方，
+        // 否则头一迈步就撞上自己的身体（冲刺型会因此永远起不了步）。
+        for (let i = len - 1; i >= 0; i--) {
+          const x = sx + dir.x * i;
+          const y = sy + dir.y * i;
+          if (x < 0 || y < 0 || x >= Config.COLS || y >= Config.ROWS) { ok = false; break; }
+          if (this.isObstacle(x, y) || this.snakeOccupies(x, y) ||
+              this.bossAt(x, y) || this.inHazard(x, y)) { ok = false; break; }
+          cells.push({ x: x, y: y });
+        }
+        if (!ok) continue;
+        const b = {
+          snake: cells,
+          prevSnake: cells.map(function (s) { return { x: s.x, y: s.y }; }),
+          dir: dir,
+          acc: 0,
+          hp: hp,
+          maxHp: hp,
+          kind: kind,
+          dashTimer: Config.BOSS_DASH_INTERVAL * 0.6,   // 首次冲刺给点缓冲
+          dashWarn: 0,
+          dashTime: 0,
+          dashDir: dir,
+          hitFlash: 0
+        };
+        this.bosses.push(b);
+        return b;
+      }
+      return null;
+    },
+
     /**
      * 生成 Boss 蛇：从四个角落候选锚点里挑一个不与蛇/障碍重叠的，
-     * 沿边横向铺开 BOSS_LEN 节。实在没有空位则降级为不生成（不影响通关）。
+     * 沿边横向铺开。实在没有空位则降级为不生成（不影响通关）。
      */
     spawnBoss: function () {
-      const len = Config.BOSS_LEN;
+      const kind = this.bossKindFor(this.stage);
+      const idx = this.bossStageIndex(this.stage);
+      const hp = Config.BOSS_HP_BASE + Math.max(0, idx) * Config.BOSS_HP_STEP;
+      const len = (kind === 'splitter') ? Config.BOSS_LEN + 1 : Config.BOSS_LEN;
       const cand = [
         { x: 1, y: 1, dir: DIR.right },
         { x: Config.COLS - 2, y: 1, dir: DIR.left },
@@ -1574,28 +1699,125 @@
         { x: Config.COLS - 2, y: Config.ROWS - 2, dir: DIR.left }
       ];
       for (let c = 0; c < cand.length; c++) {
-        const anchor = cand[c];
-        const cells = [];
-        let ok = true;
-        for (let i = 0; i < len; i++) {
-          const x = anchor.x + anchor.dir.x * i;
-          const y = anchor.y + anchor.dir.y * i;
-          if (x < 0 || y < 0 || x >= Config.COLS || y >= Config.ROWS) { ok = false; break; }
-          if (this.isObstacle(x, y) || this.snakeOccupies(x, y) || this.bossOccupies(x, y)) { ok = false; break; }
-          cells.push({ x: x, y: y });
-        }
-        if (ok) {
-          this.boss = {
-            snake: cells,
-            prevSnake: cells.map(function (s) { return { x: s.x, y: s.y }; }),
-            dir: anchor.dir,
-            acc: 0
-          };
-          this.bossAcc = 0;
-          return;
+        const a = cand[c];
+        // 锚点方向优先：spawnBossAt 内部按 right/left/down/up 试，
+        // 这里把锚点方向放在首位重试一次，保证贴边铺开
+        const b = this.spawnBossAt(a.x, a.y, kind, len, hp);
+        if (b) return b;
+      }
+      return null;
+    },
+
+    /** F 轮：某格是否被某条 Boss 占据，返回 {boss, idx, isTail} 或 null */
+    bossAt: function (x, y) {
+      for (let k = 0; k < this.bosses.length; k++) {
+        const b = this.bosses[k];
+        for (let i = 0; i < b.snake.length; i++) {
+          if (b.snake[i].x === x && b.snake[i].y === y) {
+            return { boss: b, idx: i, isTail: i === b.snake.length - 1 };
+          }
         }
       }
-      this.boss = null;
+      return null;
+    },
+
+    /**
+     * F 轮：玩家撞中 Boss 尾巴 —— Boss 扣 1 点血，玩家安全通过。
+     * 血量归零：分裂者会炸成若干条小蛇，其余直接消失；击破给分。
+     */
+    damageBoss: function (b, x, y) {
+      b.hp--;
+      b.hitFlash = Config.BOSS_HIT_FLASH;
+      const killed = b.hp <= 0;
+      let left = this.bosses.length;
+      if (killed) {
+        // 先移除本体再分裂：否则 spawnBossAt 会把本体的身体当成障碍物，
+        // 导致分裂体一处都放不下（本体已死，它占的格子本该立刻释放）
+        this.removeBoss(b);
+        if (b.kind === 'splitter') this.splitBoss(b);
+        left = this.bosses.length;
+        this.addScore(Math.round(Config.BOSS_KILL_SCORE * this.scoreMul));
+      }
+      this._lastBossHit = { x: x, y: y, kind: b.kind, killed: killed, left: left };
+      return b.hp;
+    },
+
+    /** F 轮：分裂者被击破 —— 沿尸体均分的位置炸出若干条会冲刺的小蛇 */
+    splitBoss: function (b) {
+      const n = Config.BOSS_SPLIT_COUNT;
+      for (let i = 0; i < n; i++) {
+        const at = Math.floor((i + 1) * b.snake.length / (n + 1));
+        const seed = b.snake[at] || b.snake[0];
+        this.spawnBossAt(seed.x, seed.y, 'dasher', Config.BOSS_SPLIT_LEN, Config.BOSS_SPLIT_HP);
+      }
+    },
+
+    /** F 轮：移除一条 Boss（数组里做 splice） */
+    removeBoss: function (b) {
+      const i = this.bosses.indexOf(b);
+      if (i >= 0) this.bosses.splice(i, 1);
+    },
+
+    /* ---- F 轮：毒区地形 ---- */
+
+    /** 某格是否落在毒区内 */
+    inHazard: function (x, y) {
+      for (let i = 0; i < this.hazards.length; i++) {
+        const h = this.hazards[i];
+        if (x >= h.x && x < h.x + h.w && y >= h.y && y < h.y + h.h) return true;
+      }
+      return false;
+    },
+
+    /** 毒区的所有格子是否与蛇 / Boss / 已有毒区冲突 */
+    _hazardBlocked: function (x, y, w, h) {
+      for (let a = x; a < x + w; a++) {
+        for (let b = y; b < y + h; b++) {
+          if (this.snakeOccupies(a, b) || this.bossAt(a, b) || this.inHazard(a, b)) return true;
+        }
+      }
+      return false;
+    },
+
+    /**
+     * Boss 关生成毒区：整片区域必须干净。
+     * 随机落点被占用就换个落点重试（最多 12 次），否则棋盘上障碍一多就会少生成毒区，
+     * 关卡难度会随运气浮动。
+     */
+    spawnHazards: function (count) {
+      const s = Config.HAZARD_SIZE;
+      for (let k = 0; k < count; k++) {
+        for (let attempt = 0; attempt < 12; attempt++) {
+          const cell = this.randomEmptyCell();
+          if (!cell) break;
+          const x = Math.max(0, Math.min(cell.x, Config.COLS - s));
+          const y = Math.max(0, Math.min(cell.y, Config.ROWS - s));
+          if (this._hazardBlocked(x, y, s, s)) continue;
+          this.hazards.push({ x: x, y: y, w: s, h: s, timer: Config.HAZARD_DRIFT });
+          break;
+        }
+      }
+    },
+
+    /**
+     * 毒区漂移：每隔 HAZARD_DRIFT 秒朝随机方向挪 1 格。
+     * 永远不会主动压到玩家蛇身 / Boss / 食物 —— 毒区是压缩走位的地形，不是必死陷阱。
+     */
+    updateHazards: function (dt) {
+      for (let i = 0; i < this.hazards.length; i++) {
+        const h = this.hazards[i];
+        h.timer -= dt;
+        if (h.timer > 0) continue;
+        h.timer = Config.HAZARD_DRIFT;
+        const dirs = [DIR.up, DIR.down, DIR.left, DIR.right];
+        const d = dirs[Math.floor(Math.random() * dirs.length)];
+        const nx = h.x + d.x, ny = h.y + d.y;
+        if (nx < 0 || ny < 0 || nx + h.w > Config.COLS || ny + h.h > Config.ROWS) continue;
+        if (this._hazardBlocked(nx, ny, h.w, h.h)) continue;
+        if (this.food.x >= nx && this.food.x < nx + h.w &&
+            this.food.y >= ny && this.food.y < ny + h.h) continue;
+        h.x = nx; h.y = ny;
+      }
     },
 
     /** 过关：进入下一关，累加障碍，按需生成 Boss，刷新横幅 */
@@ -1612,9 +1834,13 @@
       this.speedBuffTime = 0;
       // 升级增长蛇长：在尾部沿当前方向延伸
       this.growSnake(Config.GROW_PER_STAGE);
-      // Boss 关则生成本关 Boss 蛇，否则移除
-      if (this.isBossStage(this.stage)) this.spawnBoss();
-      else this.boss = null;
+      // F 轮：Boss 关重新生成 Boss 与毒区，非 Boss 关清空
+      this.bosses = [];
+      this.hazards = [];
+      if (this.isBossStage(this.stage)) {
+        this.spawnBoss();
+        this.spawnHazards(Config.HAZARD_COUNT);
+      }
       // 关卡横幅
       this.stageBannerText = '第 ' + this.stage + ' 关';
       this.stageBannerTime = 2.0;
@@ -1661,24 +1887,79 @@
       }
     },
 
-    /** 用真实时间推进 Boss 蛇（仅 PLAYING 且存在 Boss 时由主循环调用） */
+    /**
+     * F 轮：用真实时间推进全部 Boss（暂停时不调用，随画面冻结）。
+     * 每条 Boss 有独立累加器，冲刺期间速度按 BOSS_DASH_MUL 放大。
+     */
     updateBoss: function (dt) {
-      if (!this.boss) return;
-      this.bossAcc += dt * 1000;
-      const interval = 1000 / Config.BOSS_SPEED_TPS;
-      let guard = 0;
-      while (this.bossAcc >= interval && guard < 8) {
-        this.bossAcc -= interval;
-        guard++;
-        this.stepBoss();
-        if (this.bossHitPlayer) break;
+      const list = this.bosses;
+      for (let k = 0; k < list.length; k++) {
+        const b = list[k];
+        if (b.hitFlash > 0) b.hitFlash = Math.max(0, b.hitFlash - dt);
+
+        // 冲刺型的状态机：待机 -> 预警（锁定方向、身体发亮）-> 冲刺 -> 待机
+        if (b.kind === 'dasher') {
+          if (b.dashTime > 0) {
+            b.dashTime -= dt;
+          } else if (b.dashWarn > 0) {
+            b.dashWarn -= dt;
+            if (b.dashWarn <= 0) {
+              b.dashTime = Config.BOSS_DASH_TIME;
+              b.dir = b.dashDir;
+            }
+          } else {
+            b.dashTimer -= dt;
+            if (b.dashTimer <= 0) {
+              b.dashWarn = Config.BOSS_DASH_WARN;
+              b.dashDir = this.towardPlayer(b);
+              b.dashTimer = Config.BOSS_DASH_INTERVAL + Config.BOSS_DASH_WARN + Config.BOSS_DASH_TIME;
+            }
+          }
+        }
+
+        const mul = (b.dashTime > 0) ? Config.BOSS_DASH_MUL : 1;
+        b.acc += dt * 1000 * mul;
+        const interval = 1000 / Config.BOSS_SPEED_TPS;
+        let guard = 0;
+        while (b.acc >= interval && guard < 8) {
+          b.acc -= interval;
+          guard++;
+          this.stepBoss(b);
+          if (this.bossHitPlayer) break;
+        }
       }
     },
 
-    /** Boss 蛇走一步：朝食物（无食物则朝玩家头）移动，避开墙/障碍/双方身体 */
-    stepBoss: function () {
-      const b = this.boss;
+    /** F 轮：冲刺方向 —— 朝玩家蛇头的主轴方向（四选一，保证走直线） */
+    towardPlayer: function (b) {
+      const head = b.snake[0];
+      const t = this.snake[0];
+      const dx = t.x - head.x, dy = t.y - head.y;
+      if (Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? DIR.right : DIR.left;
+      return dy >= 0 ? DIR.down : DIR.up;
+    },
+
+    /** Boss 蛇走一步：冲刺中走直线，否则按形态追击 */
+    stepBoss: function (b) {
       if (!b) return;
+      if (b.dashTime > 0) return this.stepBossDash(b);
+      return this.stepBossSeek(b);
+    },
+
+    /** 冲刺中：沿锁定方向直线冲；撞墙/障碍/自己身体则提前结束冲刺并转回追击 */
+    stepBossDash: function (b) {
+      const head = b.snake[0];
+      const nx = head.x + b.dir.x, ny = head.y + b.dir.y;
+      if (nx < 0 || ny < 0 || nx >= Config.COLS || ny >= Config.ROWS) { b.dashTime = 0; return this.stepBossSeek(b); }
+      if (this.isObstacle(nx, ny) || this.bossOccupies(nx, ny, b, true)) {
+        b.dashTime = 0;
+        return this.stepBossSeek(b);
+      }
+      this.advanceBossHead(b, nx, ny);
+    },
+
+    /** 追击：朝食物（无食物则朝玩家头）移动，避开墙/障碍/双方身体 */
+    stepBossSeek: function (b) {
       const target = (this.food.x >= 0) ? this.food : this.snake[0];
       const head = b.snake[0];
       const dirs = [DIR.up, DIR.down, DIR.left, DIR.right];
@@ -1696,11 +1977,15 @@
       }
       if (!best) return;                                     // 四面楚歌，原地不动
       b.dir = best;
-      const nx = head.x + best.x, ny = head.y + best.y;
+      this.advanceBossHead(b, head.x + best.x, head.y + best.y);
+    },
+
+    /** 把 Boss 头推进到 (nx,ny)：记录插值用的 prevSnake、收缩尾巴、检测是否撞到玩家 */
+    advanceBossHead: function (b, nx, ny) {
       b.prevSnake = b.snake.map(function (s) { return { x: s.x, y: s.y }; });
       b.snake.unshift({ x: nx, y: ny });
       b.snake.pop();
-      // 撞到玩家：Boss 头与玩家任意一节重合 -> 玩家死亡
+      // 撞到玩家：Boss 头与玩家任意一节重合 -> 玩家受击（E 轮：扣 1 点生命）
       for (let i = 0; i < this.snake.length; i++) {
         if (this.snake[i].x === nx && this.snake[i].y === ny) { this.bossHitPlayer = true; break; }
       }
@@ -1757,8 +2042,10 @@
         if (this.special.ttl <= 0) this.special = null;
       }
       if (this.stageBannerTime > 0) this.stageBannerTime -= dt;
-      if (this.stageMode && this.state === STATE.PLAYING && this.boss) {
-        this.updateBoss(dt);
+      // F 轮：Boss 与毒区各自按真实时间推进（PLAYING 之外不调用，暂停时随画面冻结）
+      if (this.state === STATE.PLAYING) {
+        if (this.bosses.length) this.updateBoss(dt);
+        if (this.hazards.length) this.updateHazards(dt);
       }
       if (this.state === STATE.PLAYING) {
         this.specialSpawnTimer += dt * 1000;
@@ -1861,8 +2148,15 @@
       if (this.isObstacle(nx, ny)) {
         return harmless ? 'blocked' : this.hit('obstacle');
       }
-      if (this.boss && this.bossOccupies(nx, ny, this.boss)) {
-        return harmless ? 'blocked' : this.hit('boss');
+      // F 轮：毒区地形 —— 踩进去受击（毒区永远不主动压到玩家，是走位压力不是必死陷阱）
+      if (this.inHazard(nx, ny)) {
+        return harmless ? 'blocked' : this.hit('hazard');
+      }
+      // F 轮：撞 Boss —— 撞中尾节是「攻击」（Boss 扣血、玩家安全通过），撞身体才受伤
+      const bHit = this.bossAt(nx, ny);
+      if (bHit) {
+        if (bHit.isTail) this.damageBoss(bHit.boss, nx, ny);
+        else return harmless ? 'blocked' : this.hit('boss');
       }
       // 撞自己：移动是等长的（尾巴会让出当前格），因此最后一节不计入碰撞
       const limit = this.snake.length - 1;
@@ -1926,6 +2220,7 @@
       this.speedBuffTime = 0;
       this.specialSpawnTimer = 0;
       this.bossHitPlayer = false;
+      this._lastBossHit = null;
       this.invincible = 0;
       this.combo = 0;
       this.comboTimer = 0;
@@ -2106,6 +2401,7 @@
       ctx.drawImage(this.bgCanvas, 0, 0, size, size);
 
       this.drawObstacles();
+      this.drawHazards();        // F 轮：毒区（压在食物下方，不遮挡可拾取物）
       this.drawFood();
       this.drawSpecial();
       this.drawSnake(alpha);
@@ -2115,6 +2411,9 @@
       this.drawBanner();
 
       ctx.restore();
+
+      // F 轮：Boss 血条画在 restore 之后 —— 不跟随撞击震屏一起抖
+      this.drawBossHealth();
     },
 
     /** 静态底色 + 中心柔光（仅在离屏烘焙时调用） */
@@ -2524,13 +2823,38 @@
       ctx.restore();
     },
 
-    /** Boss 蛇（D 轮）：暗红发光的危险之蛇，独立于玩家蛇绘制 */
+    /**
+     * F 轮：Boss 蛇（多形态）
+     * - chaser   追猎者：暗红，D 轮原行为
+     * - splitter 分裂者：紫红，更长的蛇，被击破后分裂
+     * - dasher   游猎者：橙红，会周期性朝玩家直线冲刺
+     * 另外：命中闪白、冲刺预警箭头、尾节弱点圆环（提示"撞这里"）
+     */
     drawBoss: function (alpha) {
-      const b = Game.boss;
-      if (!b || !b.snake.length) return;
+      const list = Game.bosses;
+      for (let k = 0; k < list.length; k++) this.drawOneBoss(list[k], alpha);
+    },
+
+    /** 形态配色 */
+    _bossPalette: function (kind) {
+      if (kind === 'splitter') {
+        return { edge: '#4c1d95', c1: '#e9d5ff', c2: '#a855f7', c3: '#6b21a8',
+                 glow: 'rgba(168,85,247,0.85)', head1: '#f3e8ff', head2: '#a855f7' };
+      }
+      if (kind === 'dasher') {
+        return { edge: '#7c2d12', c1: '#fed7aa', c2: '#f97316', c3: '#9a3412',
+                 glow: 'rgba(249,115,22,0.9)', head1: '#ffedd5', head2: '#f97316' };
+      }
+      return { edge: '#7f1d1d', c1: '#fb7185', c2: '#e11d48', c3: '#9f1239',
+               glow: 'rgba(225,29,72,0.85)', head1: '#fecaca', head2: '#ef4444' };
+    },
+
+    drawOneBoss: function (b, alpha) {
       const ctx = this.ctx;
       const cell = this.cell;
       const n = b.snake.length;
+      if (!n) return;
+      const pal = this._bossPalette(b.kind);
 
       const pts = new Array(n);
       for (let i = 0; i < n; i++) {
@@ -2550,18 +2874,30 @@
       ctx.lineCap = 'round';
 
       // 深色描边
-      ctx.strokeStyle = '#7f1d1d';
+      ctx.strokeStyle = pal.edge;
       ctx.lineWidth = cell * 0.9;
       ctx.stroke(path);
 
       // 主体渐变
       const grad = ctx.createLinearGradient(pts[0].x, pts[0].y, pts[n - 1].x, pts[n - 1].y);
-      grad.addColorStop(0, '#fb7185');
-      grad.addColorStop(0.5, '#e11d48');
-      grad.addColorStop(1, '#9f1239');
+      grad.addColorStop(0, pal.c1);
+      grad.addColorStop(0.5, pal.c2);
+      grad.addColorStop(1, pal.c3);
       ctx.strokeStyle = grad;
       ctx.lineWidth = cell * 0.72;
       ctx.stroke(path);
+
+      // 命中闪白 / 冲刺预警：整条叠一层亮色
+      const flash = b.hitFlash > 0 ? (b.hitFlash / Config.BOSS_HIT_FLASH) : 0;
+      const warn = b.dashWarn > 0 ? (0.5 + 0.5 * Math.sin(Fx.time * 26)) : 0;
+      if (flash > 0 || warn > 0) {
+        ctx.save();
+        ctx.globalAlpha = Math.min(1, Math.max(flash * 0.9, warn * 0.5));
+        ctx.strokeStyle = flash > 0 ? '#ffffff' : '#fde68a';
+        ctx.lineWidth = cell * 0.8;
+        ctx.stroke(path);
+        ctx.restore();
+      }
 
       // 头部
       const head = pts[0];
@@ -2574,11 +2910,11 @@
       ctx.save();
       ctx.translate(head.x, head.y);
       const hr = cell * 0.46;
-      ctx.shadowColor = 'rgba(225,29,72,0.85)';
+      ctx.shadowColor = pal.glow;
       ctx.shadowBlur = cell * 0.4;
       const hg = ctx.createRadialGradient(-hr * 0.3, -hr * 0.3, hr * 0.1, 0, 0, hr);
-      hg.addColorStop(0, '#fecaca');
-      hg.addColorStop(1, '#ef4444');
+      hg.addColorStop(0, pal.head1);
+      hg.addColorStop(1, pal.head2);
       ctx.fillStyle = hg;
       ctx.beginPath();
       ctx.arc(0, 0, hr, 0, Math.PI * 2);
@@ -2595,6 +2931,116 @@
         ctx.fillStyle = '#0f172a';
         ctx.beginPath(); ctx.arc(ex + dx * er * 0.3, ey + dy * er * 0.3, pr, 0, Math.PI * 2); ctx.fill();
       }
+      ctx.restore();
+
+      // 冲刺预警：头前方一个闪烁箭头，给玩家反应时间
+      if (b.dashWarn > 0) {
+        const d = b.dashDir;
+        ctx.save();
+        ctx.globalAlpha = 0.45 + 0.4 * Math.sin(Fx.time * 26);
+        ctx.fillStyle = '#fde68a';
+        const s = cell * 0.32, off = cell * 0.7;
+        ctx.beginPath();
+        ctx.moveTo(head.x + d.x * off, head.y + d.y * off);
+        ctx.lineTo(head.x + d.x * (off + s) - d.y * s * 0.7, head.y + d.y * (off + s) + d.x * s * 0.7);
+        ctx.lineTo(head.x + d.x * (off + s) + d.y * s * 0.7, head.y + d.y * (off + s) - d.x * s * 0.7);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // 尾节弱点：脉动虚线圆环，明确告诉玩家"撞这里"
+      const tail = pts[n - 1];
+      ctx.save();
+      ctx.globalAlpha = 0.5 + 0.32 * Math.sin(Fx.time * 5);
+      ctx.strokeStyle = '#fef9c3';
+      ctx.lineWidth = Math.max(1.5, cell * 0.075);
+      ctx.setLineDash([cell * 0.18, cell * 0.16]);
+      ctx.beginPath();
+      ctx.arc(tail.x, tail.y, cell * 0.5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    },
+
+    /** F 轮：毒区 —— 紫色半透明方块 + 缓慢上浮的气泡 */
+    drawHazards: function () {
+      const hs = Game.hazards;
+      if (!hs.length) return;
+      const ctx = this.ctx;
+      const cell = this.cell;
+      for (let i = 0; i < hs.length; i++) {
+        const h = hs[i];
+        const x = h.x * cell, y = h.y * cell, w = h.w * cell, hh = h.h * cell;
+        ctx.save();
+        ctx.fillStyle = 'rgba(147,51,234,0.26)';
+        roundRect(ctx, x + cell * 0.06, y + cell * 0.06, w - cell * 0.12, hh - cell * 0.12, cell * 0.22);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(192,132,252,0.5)';
+        ctx.lineWidth = Math.max(1, cell * 0.055);
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(216,180,254,0.6)';
+        for (let k = 0; k < 3; k++) {
+          const ph = (Fx.time * 0.55 + k * 0.37 + i * 0.21) % 1;
+          const bx = x + w * (0.24 + 0.26 * k);
+          const by = y + hh - ph * hh * 0.85 - cell * 0.12;
+          ctx.globalAlpha = (1 - ph) * 0.65;
+          ctx.beginPath();
+          ctx.arc(bx, by, cell * (0.06 + 0.05 * (1 - ph)), 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+    },
+
+    /**
+     * F 轮：Boss 血条 —— 画布顶部中央，不受震屏影响。
+     * 多条 Boss（分裂体）时显示合计血量与条数。
+     */
+    drawBossHealth: function () {
+      const list = Game.bosses;
+      if (!list.length) return;
+      const ctx = this.ctx;
+      const size = this.size;
+
+      let cur = 0, max = 0;
+      for (let i = 0; i < list.length; i++) {
+        cur += Math.max(0, list[i].hp);
+        max += list[i].maxHp;
+      }
+      if (max <= 0) return;
+
+      const w = size * 0.44;
+      const h = Math.max(8, size * 0.022);
+      const x = (size - w) / 2;
+      const y = size * 0.018;
+      const r = h / 2;
+
+      ctx.save();
+      ctx.fillStyle = 'rgba(15,23,42,0.72)';
+      roundRect(ctx, x, y, w, h, r);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(248,113,113,0.45)';
+      ctx.lineWidth = Math.max(1, size * 0.004);
+      ctx.stroke();
+
+      const ratio = Math.max(0, Math.min(1, cur / max));
+      if (ratio > 0) {
+        const g = ctx.createLinearGradient(x, y, x + w, y);
+        g.addColorStop(0, '#ef4444');
+        g.addColorStop(1, '#fb923c');
+        ctx.fillStyle = g;
+        roundRect(ctx, x + 1, y + 1, Math.max(h * 0.5, (w - 2) * ratio), h - 2, r);
+        ctx.fill();
+      }
+
+      ctx.font = '700 ' + Math.round(size * 0.026) + 'px ' + getFontFamily();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#fecaca';
+      const name = Game.bossName(list[0].kind);
+      const label = (list.length > 1 ? (name + ' ×' + list.length) : name) + '  ' + cur + '/' + max;
+      ctx.fillText(label, size / 2, y + h + size * 0.022);
       ctx.restore();
     },
 
@@ -2624,10 +3070,10 @@
       g.addColorStop(1, '#8b5cf6');
       ctx.fillStyle = g;
       ctx.fillText(Game.stageBannerText, size / 2, size / 2 - size * 0.02);
-      if (Game.boss) {
+      if (Game.bosses.length) {
         ctx.font = '600 ' + Math.round(size * 0.045) + 'px ' + getFontFamily();
         ctx.fillStyle = '#fecaca';
-        ctx.fillText('⚠ Boss 蛇出没', size / 2, size / 2 + size * 0.08);
+        ctx.fillText('⚠ ' + Game.bossName(Game.bosses[0].kind) + ' · 撞它的尾巴', size / 2, size / 2 + size * 0.08);
       }
       ctx.restore();
     },
@@ -2900,7 +3346,7 @@
           '<p class="desc">用 <b>↑ ↓ ← →</b> 或 <b>W A S D</b> 控制方向。<br>' +
           '撞毁只扣 <b>1</b> 点生命（共 ' + Config.START_LIVES + ' 点），扣光才结束；连着吃可叠 <b>连击倍率</b>。<br>' +
           '每过一关从三张 <b>升级卡</b> 中选一张；第 ' + Config.BOSS_FIRST_STAGE + ' / ' +
-          Config.TOTAL_STAGES + ' 关迎战 <b>Boss 蛇</b>。</p>' +
+          Config.TOTAL_STAGES + ' 关迎战 <b>Boss 蛇</b>，撞中它的尾巴即可击破。</p>' +
           '<button class="btn" id="ovBtn" type="button">开始游戏</button>' +
           '<p class="hint">按 空格 / 点击屏幕 开始</p>' +
           this.renderLeaderboardBlock();
@@ -2920,7 +3366,8 @@
         if (Game.win)                           reason = '你清空了全部 ' + Config.TOTAL_STAGES + ' 关，这不太科学……';
         else if (Game.deathReason === 'wall')     reason = '撞到墙壁了，注意提前转向。';
         else if (Game.deathReason === 'obstacle') reason = '撞到障碍物了，绕着走。';
-        else if (Game.deathReason === 'boss')     reason = '被 Boss 蛇撞上了，下次离它远点。';
+        else if (Game.deathReason === 'boss')     reason = '被 Boss 蛇撞上了，要撞就撞它的尾巴。';
+        else if (Game.deathReason === 'hazard')   reason = '踩进毒区了，紫色区域要绕开。';
         else                                       reason = '咬到自己了，别急着回头。';
         if (!Game.win) reason += '（本局闯到第 ' + Game.stage + ' 关）';
 
@@ -3441,6 +3888,28 @@
       UI.updateHud();
     },
 
+    /**
+     * F 轮：Boss 被击中 / 被击破的反馈（粒子、飘字、音效、震屏）。
+     * info 来自 Game._lastBossHit，由主循环在 tick 后消费。
+     */
+    onBossHit: function (info) {
+      const px = Renderer.cx(info.x);
+      const py = Renderer.cy(info.y);
+      if (info.killed) {
+        Fx.burst(px, py, Renderer.cell * 1.6, ['#fca5a5', '#ef4444', '#fb923c', '#fef3c7', '#ffffff']);
+        Fx.floatText(px, py - Renderer.cell * 0.8,
+          info.left > 0 ? ('分裂！+' + Math.round(Config.BOSS_KILL_SCORE * Game.scoreMul))
+                        : ('击破 +' + Math.round(Config.BOSS_KILL_SCORE * Game.scoreMul)));
+        Fx.shakeScreen();
+        Sfx.bossDown();
+      } else {
+        Fx.burst(px, py, Renderer.cell, ['#fecaca', '#f87171', '#ffffff']);
+        Fx.floatText(px, py - Renderer.cell * 0.6, '-1');
+        Sfx.bossHit();
+      }
+      UI.updateHud();
+    },
+
     /** E 轮：过关后弹出三选一升级卡（选完才继续推进逻辑） */
     openUpgrade: function () {
       if (!Game.pendingUpgrades || !Game.pendingUpgrades.length) return;
@@ -3519,6 +3988,12 @@
 
           const prevFood = { x: Game.food.x, y: Game.food.y };
           const result = Game.tick();
+
+          // F 轮：本次 tick 若撞中 Boss 尾巴，先消费打击反馈
+          if (Game._lastBossHit) {
+            this.onBossHit(Game._lastBossHit);
+            Game._lastBossHit = null;
+          }
 
           if (result === 'dead') {
             this.endGame();

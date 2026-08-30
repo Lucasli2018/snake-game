@@ -46,7 +46,9 @@ function patchForExport(src) {
     src.slice(0, i) +
     '\n  globalThis.__EXPORT__ = { Config: Config, DIR: DIR, STATE: STATE,' +
     ' Storage: Storage, Sfx: Sfx, Game: Game, Fx: Fx, Renderer: Renderer,' +
-    ' UI: UI, Input: Input, App: App, roundRect: roundRect, getFontFamily: getFontFamily };' +
+    ' UI: UI, Input: Input, App: App, roundRect: roundRect, getFontFamily: getFontFamily,' +
+    ' Leaderboard: Leaderboard, Achievements: Achievements, Skins: Skins, Stats: Stats,' +
+    ' MODES: MODES, ACHIEVEMENTS: ACHIEVEMENTS, SNAKE_SKINS: SNAKE_SKINS };' +
     '\n})();'
   );
 }
@@ -389,6 +391,10 @@ function createHarness(opts) {
     Config: X.Config, DIR: X.DIR, STATE: X.STATE, Storage: X.Storage,
     Sfx: X.Sfx, Game: X.Game, Fx: X.Fx, Renderer: X.Renderer,
     UI: X.UI, Input: X.Input, App: X.App,
+    // D~G 轮新增
+    Leaderboard: X.Leaderboard, Achievements: X.Achievements,
+    Skins: X.Skins, Stats: X.Stats,
+    MODES: X.MODES, ACHIEVEMENTS: X.ACHIEVEMENTS, SNAKE_SKINS: X.SNAKE_SKINS,
 
     // 环境
     window, document, els: registry, consoleLog,

@@ -446,9 +446,11 @@ test('15.27 端到端：过关弹卡 -> 选卡 -> 继续闯下一关，全程不
   let clears = 0;
 
   for (let round = 0; round < 3; round++) {
-    // F 轮起 Boss 关会带 Boss 与毒区，本例只验证升级卡流程，清掉这些干扰
+    // F 轮起 Boss 关会带 Boss、毒区与障碍物，本例只验证升级卡流程，清掉这些随机干扰
+    // （否则蛇头正前方偶尔会撞上障碍，feedOnce 会返回 hit 而不是 stageclear）
     g.hazards = [];
     g.bosses = [];
+    g.obstacles = [];
     g.stageFoods = g.stageTarget - 1;      // 再吃一颗即过关
     const r = feedOnce(h);
     if (r === 'win') break;

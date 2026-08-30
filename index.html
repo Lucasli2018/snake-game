@@ -699,6 +699,12 @@
   }
   .btn:hover  { filter: brightness(1.05); }
   .btn:active { transform: scale(.96); }
+  .btn.ghost {
+    background: rgba(148,163,184,0.18);
+    color: #cbd5e1;
+    box-shadow: none;
+  }
+  .btn.ghost:hover { background: rgba(148,163,184,0.28); }
 
   .panel .hint {
     font-size: clamp(11px, 2.6cqw, 13px);
@@ -1186,7 +1192,7 @@
     right: { x: 1,  y: 0  }
   };
 
-  const STATE = { READY: 'ready', PLAYING: 'playing', PAUSED: 'paused', GAMEOVER: 'gameover' };
+  const STATE = { READY: 'ready', PLAYING: 'playing', PAUSED: 'paused', GAMEOVER: 'gameover', LEADERBOARD: 'leaderboard' };
 
   /* ============================================================
    * 2. 存储（隐私模式下 localStorage 会抛错，全部 try-catch 兜底）
@@ -3841,8 +3847,8 @@
           this.renderSkins() +
           this.renderProfile() +
           '<button class="btn" id="ovBtn" type="button">开始游戏</button>' +
-          '<p class="hint">按 空格 / 点击屏幕 开始</p>' +
-          this.renderLeaderboardBlock();
+          '<button class="btn ghost" id="ovLb" type="button">🏆 排行榜</button>' +
+          '<p class="hint">按 空格 / Enter 开始 · 点「排行榜」查看榜单</p>'
 
       } else if (s === STATE.PAUSED) {
         // 暂停屏不加排行榜，保持轻量
@@ -3908,6 +3914,14 @@
           '<button class="btn" id="ovBtn" type="button">再来一局</button>' +
           '<p class="hint">按 R / 空格 / 点击屏幕 重新开始</p>';
 
+      } else if (s === STATE.LEADERBOARD) {
+        html =
+          '<div class="tag">LEADERBOARD</div>' +
+          '<h2>🏆 排行榜</h2>' +
+          this.renderLeaderboardBlock() +
+          '<button class="btn ghost" id="ovBack" type="button">返回</button>' +
+          '<p class="hint">按 Esc / 点「返回」回到开始</p>';
+
       } else {
         this.els.overlay.hidden = true;
         this.updateBuff();
@@ -3963,6 +3977,23 @@
         clearBtn.addEventListener('click', function (e) {
           e.stopPropagation();
           self.onClearClick();
+        });
+      }
+
+      // 开始屏：排行榜按钮 -> 进入独立排行榜面板
+      const lbBtn = document.getElementById('ovLb');
+      if (lbBtn) {
+        lbBtn.addEventListener('click', function (e) {
+          if (e && e.stopPropagation) e.stopPropagation();
+          App.showLeaderboard();
+        });
+      }
+      // 排行榜面板：返回按钮 -> 回到开始屏
+      const backBtn = document.getElementById('ovBack');
+      if (backBtn) {
+        backBtn.addEventListener('click', function (e) {
+          if (e && e.stopPropagation) e.stopPropagation();
+          App.showStart();
         });
       }
 
@@ -4255,6 +4286,7 @@
       if (k === 'Escape' || k === 'Esc') {
         if (Game.state === STATE.PLAYING) App.pause();
         else if (Game.state === STATE.PAUSED) App.resume();
+        else if (Game.state === STATE.LEADERBOARD) App.showStart();
         return;
       }
 
@@ -4382,6 +4414,19 @@
       else if (Game.state === STATE.PLAYING)  this.pause();
       else if (Game.state === STATE.PAUSED)   this.resume();
       else if (Game.state === STATE.GAMEOVER) this.restart();
+      else if (Game.state === STATE.LEADERBOARD) return;  // 独立面板态：不误开始
+    },
+
+    /** 进入独立排行榜面板（暂停游戏逻辑，与 READY 同级） */
+    showLeaderboard: function () {
+      Game.state = STATE.LEADERBOARD;
+      UI.syncOverlay();
+    },
+
+    /** 从独立面板返回开始屏 */
+    showStart: function () {
+      Game.state = STATE.READY;
+      UI.syncOverlay();
     },
 
     start: function () {

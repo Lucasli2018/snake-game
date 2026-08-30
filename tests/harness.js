@@ -48,6 +48,7 @@ function patchForExport(src) {
     ' Storage: Storage, Sfx: Sfx, Game: Game, Fx: Fx, Renderer: Renderer,' +
     ' UI: UI, Input: Input, App: App, roundRect: roundRect, getFontFamily: getFontFamily,' +
     ' Leaderboard: Leaderboard, Achievements: Achievements, Skins: Skins, Stats: Stats,' +
+    ' Share: Share, FriendsBoard: FriendsBoard,' +
     ' MODES: MODES, ACHIEVEMENTS: ACHIEVEMENTS, SNAKE_SKINS: SNAKE_SKINS };' +
     '\n})();'
   );
@@ -364,6 +365,11 @@ function createHarness(opts) {
     ResizeObserver: opts.resizeObserver === false ? undefined : FakeResizeObserver,
     console: consoleStub,
     DOMException,
+    // 浏览器原生全局：btoa/atob 用于分享码编解码，escape/unescape 用于 UTF-8 安全编码
+    btoa: (typeof btoa !== 'undefined') ? btoa : function () {},
+    atob: (typeof atob !== 'undefined') ? atob : function () {},
+    escape: (typeof escape !== 'undefined') ? escape : function (s) { return s; },
+    unescape: (typeof unescape !== 'undefined') ? unescape : function (s) { return s; },
     self: window,
     globalThis: undefined
   };
@@ -394,6 +400,8 @@ function createHarness(opts) {
     // D~G 轮新增
     Leaderboard: X.Leaderboard, Achievements: X.Achievements,
     Skins: X.Skins, Stats: X.Stats,
+    // H 轮新增
+    Share: X.Share, FriendsBoard: X.FriendsBoard,
     MODES: X.MODES, ACHIEVEMENTS: X.ACHIEVEMENTS, SNAKE_SKINS: X.SNAKE_SKINS,
 
     // 环境

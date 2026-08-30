@@ -49,7 +49,8 @@ test('07.3 没有带外链的 src= / href=（src="..." 只能引用 data: 或留
 
 test('07.4 CSS 里没有 @import，也没有 url( 外链', () => {
   assert.ok(!/@import/i.test(HTML), '发现 @import');
-  const urls = HTML.match(/url\s*\([^)]*\)/gi) || [];
+  // 注意：大小写不敏感会误伤 Canvas 的 toDataURL( 调用，用负向后行断言排除（它不是 CSS 外链）
+  const urls = HTML.match(/(?<!toData)url\s*\([^)]*\)/gi) || [];
   const external = urls.filter((u) => !/data:/i.test(u) && !/gradient/i.test(u));
   assert.deepStrictEqual(external, [], `发现 CSS url() 外链：${JSON.stringify(external)}`);
 });

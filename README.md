@@ -42,7 +42,8 @@
 - 速度随**过关**递增，带上限（4 → 13 格/秒，`tps = min(4 + 0.9×level, 13)`，level 由过关驱动）
 - 当前得分 / 最高分（`localStorage` 持久化）/ 速度等级 + 速度进度条
 - **排行榜**（`localStorage` 持久化，最多 10 条）：点开始屏「🏆 排行榜」按钮进入**独立面板**展示 Top 10，前三名金银铜奖牌 + 当前玩家行高亮；结束屏显示「第 N / M 名」名次徽章（前三名金银铜配色 + 脉动新纪录）并可改名（默认名 `Ply`，≤3 字符），清榜带 5 秒二次确认倒计时，隐私模式下静默降级
-- 四态状态机：ready / playing / paused / gameover
+- **社交分享（H 轮 · 零后端）**：结算屏（GAMEOVER / 通关 / 时间到）生成本局 `SNK1-` 分享码，一键「复制分享码」与「保存成绩卡」；开始屏点「👥 好友榜」进入独立面板，粘贴好友分享码即可导入并在本地比分数（与排行榜严格分离），脏数据/重复码/非法码全部容错
+- 六态状态机：ready / playing / paused / gameover / leaderboard / social
 - 页面切到后台或窗口失焦 → 自动暂停
 - 窗口尺寸变化 → 画布自适应重绘（按 devicePixelRatio 渲染，高分屏不糊）
 - 响应式布局，桌面 / 手机都能满屏玩
@@ -222,6 +223,16 @@ App       状态切换 + 主循环
 
 **统计兜底**：`Stats` / `Achievements` / `Skins` 的 `load` 都做脏数据 `try-catch`，隐私模式下 `save` 静默降级，绝不抛异常。
 
+### H 轮：社交分享（零后端）
+
+**分享码**：`Share.encode(runData)` 把 `{v, m, s, l, t, b, c, a}` 经 `JSON.stringify → encodeURIComponent → unescape → btoa` 压缩成 `SNK1-` 前缀的短码；`Share.decode()` 对空串、前缀错误、截断 base64、版本不符、模式越界、分数负数等全部容错，返回 `null` 不抛异常。版本字段 `Config.SHARE_VERSION` 控制兼容性，未来升级可拒绝旧码。
+
+**好友榜**：`FriendsBoard` 完全独立于 `Leaderboard`（键为 `snake-friends.v1`），支持 `add/list/remove/clear`：导入时先解码校验，重复码返回 `dup`，非法码返回 `invalid`，空串返回 `empty`；列表按分数降序排列，读取脏数据时自动去重并忽略非法条目。隐私模式下 `Storage.set` 静默失败，界面不会崩溃。
+
+**成绩卡**：`saveScoreCard()` 用离屏 Canvas 合成 480×600 的 PNG 成绩卡（渐变背景 + 皮肤配色蛇头 + 得分 + 明细 + 分享码），再触发 `<a download>` 下载；画布内所有内容均用 API 绘制，无跨域图片，`file://` 双击打开时也能正常导出。
+
+**结算屏与好友榜 UI**：GAMEOVER / 通关 / 时间到三种结算态都会显示「本局分享码 + 复制 + 保存成绩卡」；开始屏「👥 好友榜」按钮进入 `STATE.SOCIAL` 独立面板，`friendCode` 输入框 + `ovImport` 导入按钮 + 好友列表 + 返回按钮；导入成功/失败/重复都会在 `friendMsg` 提示区给出文案反馈。
+
 ### 排行榜
 
 键 `snake-leaderboard`，`JSON` 数组、最多 `LEADERBOARD_MAX`（10）条，每条：
@@ -301,7 +312,12 @@ HAZARD_DRIFT: 5          // 毒区每隔几秒漂移一格
 TIME_ATTACK_SEC: 60,     // 限时模式时长（秒）
 GROW_EVERY: 1,           // 无尽 / 限时：每吃几颗变长 1 节（闯关模式固定不变长）
 UPGRADE_EVERY_LEVEL: 3,  // 无尽模式：每升几级弹一次升级卡
-ACH_TOAST_TIME: 3.2      // 成就提示卡停留秒数
+ACH_TOAST_TIME: 3.2,    // 成就提示卡停留秒数
+
+// H 轮：社交分享
+SHARE_PREFIX: 'SNK1-',   // 分享码前缀，用于识别和快速过滤
+SHARE_VERSION: 1,        // 分享码协议版本，未来升级旧码会提示失效
+FRIENDS_MAX: 20          // 本机最多保存多少条好友成绩
 ```
 
 速度曲线：`tps = min(4 + level × 0.9, 13)`，`level` 由过关驱动（`advanceStage` 中 `level++`），不再随分数变化。
@@ -324,7 +340,8 @@ snake-game/
     ├── 15-e-round.test.js   # E 轮生命/连击/升级卡测试（28 条）
     ├── 16-f-round.test.js   # F 轮 Boss/毒区测试（19 条）
     ├── 17-g-round.test.js   # G 轮模式/成就/皮肤/统计测试（28 条）
-    └── 18-leaderboard-ui.test.js  # 排行榜独立按钮/面板测试（5 条）
+    ├── 18-leaderboard-ui.test.js  # 排行榜独立按钮/面板测试（5 条）
+    └── 19-h-social.test.js  # H 轮社交分享测试（18 条）
 ```
 
 ### 跑测试

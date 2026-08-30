@@ -1,0 +1,7 @@
+# WorkBuddy session artifacts (screenshots, logs, session data)
+.workbuddy/
+
+# OS / editor droppings
+.DS_Store
+Thumbs.db
+*.log

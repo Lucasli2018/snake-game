@@ -100,7 +100,7 @@
     - **闯关**（原有）：6 关递进、过关三选一、Boss 与毒区，清空第 6 关即通关
     - **无尽**：吃到食物就变长（`GROW_EVERY` 颗一节），速度随分数稳步上涨，撞光生命为止；每升 `UPGRADE_EVERY_LEVEL` 级也会弹一次升级卡
     - **限时**：`TIME_ATTACK_SEC`（60 秒）内冲刺拿分，时间到即结算（算「完成」不算「死亡」），结束文案显示本局得分
-  - **成就系统（12 项）**：达成瞬间画布内滑入提示卡 + 专属上行音效（`Sfx.achievement`），`localStorage` 持久化（键 `snake-achievements.v1`），重开不丢。判定集中于 `Game.checkAchievements()`，全部 12 项与解锁条件如下。开始屏点「★ 成就」可进入独立面板，按进度条展示已解锁 X/12，逐张列出名称 / 描述 / 解锁条件，并标注该成就解锁的对应皮肤：
+  - **成就系统（12 项）**：达成瞬间画布内滑入提示卡 + 专属上行音效（`Sfx.achievement`），`localStorage` 持久化（键 `snake-achievements.v1`），重开不丢。判定集中于 `Game.checkAchievements()`，全部 12 项与解锁条件如下。开始屏点「★ 成就」**跳转到独立展示页** `achievements-showcase.html`（零依赖单文件，左上角带「← 返回主页」按钮），按进度条展示已解锁 X/12，逐张列出名称 / 描述 / 解锁条件，并标注该成就解锁的对应皮肤：
 
     | 成就 | 名称 | 解锁条件（真实判定） | 类别 |
     | --- | --- | --- | --- |
@@ -361,7 +361,7 @@ FRIENDS_MAX: 20          // 本机最多保存多少条好友成绩
 snake-game/
 ├── index.html   # 完整游戏（HTML + CSS + JS 全部内联，无任何外部资源引用）
 ├── README.md
-├── achievements-showcase.html  # 零依赖成就系统展示页（12 项成就 + 皮肤联动，数据同源）
+├── achievements-showcase.html  # 零依赖成就系统展示页（12 项成就 + 皮肤联动，数据同源，左上角「← 返回主页」）
 └── tests/       # Node 内置 test runner 测试（harness 抽离 index.html 内联脚本在 vm 沙箱实跑）
     ├── harness.js            # 测试脚手架：最小 DOM / Canvas / WebAudio / localStorage 替身
     ├── 01~12-*.test.js      # 原有玩法 / 状态机 / 存储 / 回归 / B 轮测试
@@ -372,7 +372,7 @@ snake-game/
     ├── 17-g-round.test.js   # G 轮模式/成就/皮肤/统计测试（28 条）
     ├── 18-leaderboard-ui.test.js  # 排行榜独立按钮/面板测试（5 条）
     ├── 19-h-social.test.js  # H 轮社交分享测试（18 条）
-    ├── 20-achievements-ui.test.js  # 成就系统入口与面板测试（6 条）
+    ├── 20-achievements-ui.test.js  # 成就系统入口与展示页跳转测试（6 条）
     └── 21-guide.test.js  # 玩法指引弹窗测试（8 条）
 ```
 

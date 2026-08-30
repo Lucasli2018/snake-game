@@ -706,6 +706,21 @@
   }
   .btn.ghost:hover { background: rgba(148,163,184,0.28); }
 
+  /* 开始屏底部三个入口：排行榜 / 成就 / 好友榜 并排 */
+  .btn-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: clamp(8px, 2cqw, 12px);
+    width: 100%;
+  }
+  .btn-row .btn {
+    flex: 1 1 0;
+    min-width: 88px;
+    padding-left: 0.6em;
+    padding-right: 0.6em;
+  }
+
   .panel .hint {
     font-size: clamp(11px, 2.6cqw, 13px);
     color: #94a3b8;
@@ -4166,9 +4181,11 @@
           this.renderSkins() +
           this.renderProfile() +
           '<button class="btn" id="ovBtn" type="button">开始游戏</button>' +
-          '<button class="btn ghost" id="ovLb" type="button">🏆 排行榜</button>' +
-          '<button class="btn ghost" id="ovAch" type="button">★ 成就</button>' +
-          '<button class="btn ghost" id="ovFriends" type="button">👥 好友榜</button>' +
+          '<div class="btn-row">' +
+            '<button class="btn ghost" id="ovLb" type="button">🏆 排行榜</button>' +
+            '<button class="btn ghost" id="ovAch" type="button">★ 成就</button>' +
+            '<button class="btn ghost" id="ovFriends" type="button">👥 好友榜</button>' +
+          '</div>' +
           '<p class="hint">按 空格 / Enter 开始 · 点「排行榜 / 成就 / 好友榜」查看</p>'
 
       } else if (s === STATE.PAUSED) {

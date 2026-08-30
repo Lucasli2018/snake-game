@@ -1078,7 +1078,7 @@
   }
   #lbName {
     font: inherit;
-    width: 4.5em;
+    width: clamp(6em, 16cqw, 9em);
     text-align: center;
     background: rgba(248,250,252,0.12);
     border: 1px solid rgba(148,163,184,0.3);
@@ -4449,7 +4449,7 @@
               '</div>' +
             '</div>' +
             '<div class="lb-current">' +
-              '<input id="lbName" type="text" maxlength="3" value="' + escapeHtml(rec.name) + '" readonly placeholder="Ply">' +
+              '<input id="lbName" type="text" maxlength="10" value="' + escapeHtml(rec.name) + '" readonly placeholder="Ply">' +
               '<button id="lbEdit" type="button">改名</button>' +
               '<button id="lbSave" type="button" style="display:none">保存</button>' +
             '</div>';
@@ -4473,6 +4473,7 @@
           '</div>' +
           '<p class="desc">' + reason + '</p>' +
           lbHtml +
+          '<button class="btn" id="ovBtn" type="button">再来一局</button>' +
           (shareCode
             ? '<div class="share-block">' +
                 '<div class="share-label">成绩分享码（发给好友比一比）</div>' +
@@ -4483,7 +4484,6 @@
                 '</div>' +
               '</div>'
             : '') +
-          '<button class="btn" id="ovBtn" type="button">再来一局</button>' +
           '<p class="hint">按 R / 空格 / 点击屏幕 重新开始</p>';
 
       } else if (s === STATE.LEADERBOARD) {
@@ -4997,7 +4997,7 @@
     onSaveName: function () {
       const input = document.getElementById('lbName');
       const raw = (input && typeof input.value === 'string') ? input.value.trim() : '';
-      const name = raw ? raw.slice(0, 3) : 'Ply';
+      const name = raw ? raw.slice(0, 10) : 'Ply';
       const rec = Leaderboard.lastRecord;
       if (!rec) return;
       Leaderboard.remove(rec);

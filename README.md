@@ -99,7 +99,7 @@
     - **闯关**（原有）：6 关递进、过关三选一、Boss 与毒区，清空第 6 关即通关
     - **无尽**：吃到食物就变长（`GROW_EVERY` 颗一节），速度随分数稳步上涨，撞光生命为止；每升 `UPGRADE_EVERY_LEVEL` 级也会弹一次升级卡
     - **限时**：`TIME_ATTACK_SEC`（60 秒）内冲刺拿分，时间到即结算（算「完成」不算「死亡」），结束文案显示本局得分
-  - **成就系统（12 项）**：达成瞬间画布内滑入提示卡 + 专属上行音效（`Sfx.achievement`），`localStorage` 持久化（键 `snake-achievements.v1`），重开不丢。判定集中于 `Game.checkAchievements()`，全部 12 项与解锁条件如下：
+  - **成就系统（12 项）**：达成瞬间画布内滑入提示卡 + 专属上行音效（`Sfx.achievement`），`localStorage` 持久化（键 `snake-achievements.v1`），重开不丢。判定集中于 `Game.checkAchievements()`，全部 12 项与解锁条件如下。开始屏点「★ 成就」可进入独立面板，按进度条展示已解锁 X/12，逐张列出名称 / 描述 / 解锁条件，并标注该成就解锁的对应皮肤：
 
     | 成就 | 名称 | 解锁条件（真实判定） | 类别 |
     | --- | --- | --- | --- |
@@ -370,7 +370,8 @@ snake-game/
     ├── 16-f-round.test.js   # F 轮 Boss/毒区测试（19 条）
     ├── 17-g-round.test.js   # G 轮模式/成就/皮肤/统计测试（28 条）
     ├── 18-leaderboard-ui.test.js  # 排行榜独立按钮/面板测试（5 条）
-    └── 19-h-social.test.js  # H 轮社交分享测试（18 条）
+    ├── 19-h-social.test.js  # H 轮社交分享测试（18 条）
+    └── 20-achievements-ui.test.js  # 成就系统入口与面板测试（6 条）
 ```
 
 ### 跑测试

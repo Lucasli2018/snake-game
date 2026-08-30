@@ -80,19 +80,21 @@ test('11.1 三屏内层全部走文档流：flex 列 + gap，无冗余绝对定�
   // go-stats：统计网格（E 轮由 3 格扩为 2×2 四格）
   assert.ok(/\.go-stats\s*\{[^}]*display:\s*grid/.test(css), 'go-stats 应为 grid 布局');
 
-  // 仅允许三处 position:absolute：.overlay（覆盖画布）、.buff-bar（画布底部状态条）、
-  // .combo-bar（画布顶部连击条，E 轮新增）。
+  // 仅允许六处 position:absolute：.overlay（覆盖画布）、.buff-bar（画布底部状态条）、
+  // .combo-bar（画布顶部连击条，E 轮新增）、.skin-dot.locked::after（皮肤锁定角标）、
+  // 以及玩法指引弹窗的 .guide-modal + .guide-backdrop（覆盖在 overlay 之上的独立模态层）。
   // 关卡指示条 .stage-bar 已搬到画布外的 HUD 下方用文档流布局，不再算绝对定位。
   // 三屏面板内层不得出现绝对定位。
-  // 第四处是 G 轮新增的 .skin-dot.locked::after（皮肤锁定角标，作用在 .skin-dot 内部）
   const abs = css.match(/position:\s*absolute/g) || [];
-  assert.strictEqual(abs.length, 4,
-    `绝对定位应仅 4 处(.overlay + .buff-bar + .combo-bar + .skin-dot::after)，实际 ${abs.length} 处`);
+  assert.strictEqual(abs.length, 6,
+    `绝对定位应为 6 处(.overlay/.buff-bar/.combo-bar/.skin-dot::after/.guide-modal/.guide-backdrop)，实际 ${abs.length} 处`);
   assert.ok(/\.overlay\s*\{[^}]*position:\s*absolute/.test(css), '绝对定位之一应属于 .overlay');
   assert.ok(/\.buff-bar\s*\{[^}]*position:\s*absolute/.test(css), '绝对定位之二应属于 .buff-bar');
   assert.ok(/\.combo-bar\s*\{[^}]*position:\s*absolute/.test(css), '绝对定位之三应属于 .combo-bar');
   assert.ok(/\.skin-dot\.locked::after\s*\{[^}]*position:\s*absolute/.test(css),
     '绝对定位之四应属于 .skin-dot.locked::after');
+  assert.ok(/\.guide-modal\s*\{[^}]*position:\s*absolute/.test(css), '绝对定位之五应属于 .guide-modal');
+  assert.ok(/\.guide-backdrop\s*\{[^}]*position:\s*absolute/.test(css), '绝对定位之六应属于 .guide-backdrop');
 });
 
 test('11.2 三屏关键字号均用相对单位 cqw（无硬编码 px 作为实际字号）', () => {

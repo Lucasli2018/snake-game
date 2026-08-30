@@ -152,7 +152,9 @@ const STATIC_IDS = [
   'themeBtn', 'moonIcon', 'sunIcon',
   'buffBar', 'buffIc', 'buffTx', 'buffTm',
   'stageEl', 'stageProgEl',
-  'livesEl', 'comboBar', 'comboMul', 'comboCnt', 'comboTm'
+  'livesEl', 'comboBar', 'comboMul', 'comboCnt', 'comboTm',
+  // 玩法指引弹窗
+  'guideModal', 'guideBody', 'guideClose', 'guideOk'
 ];
 
 function makeElement(id, env) {

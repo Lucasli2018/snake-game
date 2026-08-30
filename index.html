@@ -475,7 +475,7 @@
   .skin-dot.locked { cursor: not-allowed; opacity: .5; }
   .skin-dot.locked i { filter: grayscale(1) brightness(.7); }
   .skin-dot.locked::after {
-    content: '\u00D7';
+    content: '×';
     position: absolute;
     inset: 0;
     display: grid;
@@ -491,14 +491,17 @@
     flex-wrap: wrap;
     justify-content: center;
     align-items: center;
-    gap: 3px 6px;
+    gap: 4px 8px;
+    margin: 2px 0 6px;
     font-size: clamp(10px, 2.5cqw, 12px);
     color: #94a3b8;
     font-variant-numeric: tabular-nums;
     line-height: 1.4;
   }
+  .profile .pf-item { display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; }
   .profile b { color: #e2e8f0; font-weight: 800; }
-  .profile .pf-sep { opacity: .45; }
+  .profile .pf-sep { opacity: .45; padding: 0 2px; }
+  .skins { margin: 6px 0; }
 
   /* ============================ 遮罩层 ============================
      关键：所有遮罩模板都使用正常文档流 flex 列布局，间距交给 gap，
@@ -534,7 +537,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: clamp(8px, 2.2cqw, 14px);
+    gap: clamp(10px, 2.6cqw, 16px);
     animation: pop .22s ease;
   }
 

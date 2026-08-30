@@ -75,7 +75,7 @@ test('11.1 三屏内层全部走文档流：flex 列 + gap，无冗余绝对定�
 
   // panel：单列 + gap（层级间距交给 gap，从结构上杜绝重叠）
   assert.ok(/\.panel\s*\{[^}]*flex-direction:\s*column/.test(css), 'panel 应为 flex 列');
-  assert.ok(/\.panel\s*\{[^}]*gap:\s*clamp\(10px,\s*2\.6cqw,\s*16px\)/.test(css), 'panel gap 应为 clamp(10,2.6cqw,16)，G 轮修复遮挡后增大');
+  assert.ok(/\.panel\s*\{[^}]*gap:\s*clamp\(8px,\s*2cqw,\s*14px\)/.test(css), 'panel gap 应为 clamp(8,2cqw,14)，首页/排行榜/好友榜紧凑化后减小');
 
   // go-stats：统计网格（E 轮由 3 格扩为 2×2 四格）
   assert.ok(/\.go-stats\s*\{[^}]*display:\s*grid/.test(css), 'go-stats 应为 grid 布局');

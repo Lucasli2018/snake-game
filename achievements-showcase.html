@@ -70,10 +70,25 @@
     padding:2px 7px;color:var(--gold);font-size:12.5px}
   .arch .muted{color:var(--muted)}
   footer{margin-top:40px;text-align:center;color:var(--muted);font-size:12px}
+
+  /* 返回主页按钮：左上角固定位置，滚动时始终可见 */
+  .back-btn{
+    position:fixed;top:18px;left:18px;z-index:50;
+    display:inline-flex;align-items:center;gap:6px;
+    padding:9px 16px;border-radius:999px;
+    background:var(--panel);border:1px solid var(--line);color:var(--ink);
+    font-size:13px;font-weight:600;text-decoration:none;
+    transition:.18s ease;box-shadow:0 2px 10px rgba(0,0,0,.18)
+  }
+  .back-btn:hover{background:var(--gold2);color:#1a1500;border-color:var(--gold2);transform:translateY(-1px)}
+  .back-btn:active{transform:translateY(0)}
+  @media(max-width:520px){.back-btn{top:12px;left:12px;padding:7px 12px;font-size:12px}}
+
   @media(max-width:520px){h1{font-size:24px}.grid{grid-template-columns:1fr 1fr}}
 </style>
 </head>
 <body>
+<a class="back-btn" href="index.html" aria-label="返回主页">← 返回主页</a>
 <div class="wrap">
   <header>
     <h1><span class="star">★</span> 暗夜贪吃蛇 · 成就系统</h1>

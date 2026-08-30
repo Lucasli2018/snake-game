@@ -523,7 +523,9 @@
     animation: fade .18s ease;
     container-type: inline-size;
     overflow-y: auto;            /* G 轮：开始屏多了模式/皮肤/档案，小屏可滚动 */
+    scrollbar-width: none;       /* Firefox：主页隐藏滚动条，干净不抖 */
   }
+  .overlay::-webkit-scrollbar { display: none; }  /* Chrome/Safari/Edge：同上 */
   .overlay[hidden] { display: none; }
 
   /* ============================ 玩法指引弹窗 ============================ */
@@ -619,6 +621,7 @@
     max-height: 100%;            /* 不超出遮罩内容区 */
     min-height: 0;               /* flex 子项可被压缩，避免最小高度撑破遮罩 */
     overflow-y: auto;            /* 面板自身滚动，不依赖外部遮罩，避免和 footer/header 打架 */
+    scrollbar-width: none;       /* Firefox：主页面板隐藏滚动条 */
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
@@ -626,6 +629,7 @@
     gap: clamp(10px, 2.6cqw, 16px);
     animation: pop .22s ease;
   }
+  .panel::-webkit-scrollbar { display: none; }  /* Chrome/Safari/Edge：同上 */
 
   .tag {
     display: inline-block;
@@ -4532,12 +4536,12 @@
           App.showFriends();
         });
       }
-      // 开始屏：成就按钮 -> 进入独立成就面板
+      // 开始屏：成就按钮 -> 跳转到成就系统独立展示页
       const achBtn = document.getElementById('ovAch');
       if (achBtn) {
         achBtn.addEventListener('click', function (e) {
           if (e && e.stopPropagation) e.stopPropagation();
-          App.showAchievements();
+          window.location.href = 'achievements-showcase.html';
         });
       }
       // 开始屏：玩法指引按钮 -> 打开指引弹窗

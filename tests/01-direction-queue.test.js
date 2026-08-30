@@ -215,6 +215,9 @@ test('01.9 3 万次随机「连按 + 推进」模糊测试：蛇身永不重叠�
       if (!g.queueDirection(d)) queueRejects++;
     } else {
       const r = g.tick();
+      // E 轮：免伤 / 连击计时由主循环的 updateTimers(dt) 推进，这里按真实 tick 间隔
+      // 手动推进，否则免伤永不到期，蛇会一直停在原地、再也撞不死。
+      g.updateTimers(1 / g.tps());
       if (r === 'dead') {
         deaths++;
         assert.ok(!H.hasDuplicateCells(g.snake), `第 ${i} 次迭代：死亡时蛇身已重叠`);

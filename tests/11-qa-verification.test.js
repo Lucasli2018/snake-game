@@ -35,6 +35,7 @@ function dieWithScore(h, score) {
   g.dir = h.DIR.left;
   g.dirQueue = [];
   h.pumpFrames(24);
+  H.killPlayer(h);               // E 轮：撞墙只扣 1 点生命，撞满生命数才真正结束
   return g.state === h.STATE.GAMEOVER;
 }
 function rename(h, name) {
@@ -76,16 +77,19 @@ test('11.1 三屏内层全部走文档流：flex 列 + gap，无冗余绝对定�
   assert.ok(/\.panel\s*\{[^}]*flex-direction:\s*column/.test(css), 'panel 应为 flex 列');
   assert.ok(/\.panel\s*\{[^}]*gap:\s*clamp\(8px,\s*2\.2cqw,\s*14px\)/.test(css), 'panel gap 应为 clamp(8,2.2cqw,14)');
 
-  // go-stats：三格统计网格
+  // go-stats：统计网格（E 轮由 3 格扩为 2×2 四格）
   assert.ok(/\.go-stats\s*\{[^}]*display:\s*grid/.test(css), 'go-stats 应为 grid 布局');
 
-  // 仅允许两处 position:absolute：.overlay（覆盖画布）与 .buff-bar（画布底部状态条），
+  // 仅允许三处 position:absolute：.overlay（覆盖画布）、.buff-bar（画布底部状态条）、
+  // .combo-bar（画布顶部连击条，E 轮新增）。
   // 关卡指示条 .stage-bar 已搬到画布外的 HUD 下方用文档流布局，不再算绝对定位。
   // 三屏面板内层不得出现绝对定位。
   const abs = css.match(/position:\s*absolute/g) || [];
-  assert.strictEqual(abs.length, 2, `绝对定位应仅 2 处(.overlay + .buff-bar)，实际 ${abs.length} 处`);
+  assert.strictEqual(abs.length, 3,
+    `绝对定位应仅 3 处(.overlay + .buff-bar + .combo-bar)，实际 ${abs.length} 处`);
   assert.ok(/\.overlay\s*\{[^}]*position:\s*absolute/.test(css), '绝对定位之一应属于 .overlay');
   assert.ok(/\.buff-bar\s*\{[^}]*position:\s*absolute/.test(css), '绝对定位之二应属于 .buff-bar');
+  assert.ok(/\.combo-bar\s*\{[^}]*position:\s*absolute/.test(css), '绝对定位之三应属于 .combo-bar');
 });
 
 test('11.2 三屏关键字号均用相对单位 cqw（无硬编码 px 作为实际字号）', () => {

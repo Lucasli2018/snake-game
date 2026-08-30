@@ -85,7 +85,7 @@ test('14.4 障碍物合法：不在棋盘外、不压蛇身/食物，且 placeFo
   }
 });
 
-test('14.5 撞障碍物 -> dead，deathReason=obstacle', () => {
+test('14.5 撞障碍物 -> 受击扣血（E 轮后不再一撞即死），deathReason=obstacle', () => {
   const h = H.createHarness();
   const g = h.Game;
   g.stageMode = true;
@@ -96,11 +96,16 @@ test('14.5 撞障碍物 -> dead，deathReason=obstacle', () => {
   g.obstacles = [{ x: nx, y: ny }];
   g.food = { x: 0, y: 0 };    // 远离，避免 willGrow 干扰
   const r = g.tick();
-  assert.strictEqual(r, 'dead');
+  // E 轮：撞障碍改为扣 1 点生命 + 进入免伤，撞满生命数才 dead
+  assert.strictEqual(r, 'hit');
   assert.strictEqual(g.deathReason, 'obstacle');
+  assert.strictEqual(g.lives, h.Config.START_LIVES - 1);
+  // 免伤期间再撞同一块障碍：停在原地不扣血
+  assert.strictEqual(g.tick(), 'blocked', '免伤期间撞障碍应停在原地');
+  assert.strictEqual(g.lives, h.Config.START_LIVES - 1, '免伤期间不应重复扣血');
 });
 
-test('14.6 撞 Boss 蛇身 -> dead，deathReason=boss', () => {
+test('14.6 撞 Boss 蛇身 -> 受击扣血（E 轮后不再一撞即死），deathReason=boss', () => {
   const h = H.createHarness();
   const g = h.Game;
   const c = h.Config;
@@ -117,8 +122,10 @@ test('14.6 撞 Boss 蛇身 -> dead，deathReason=boss', () => {
   };
   g.food = { x: 0, y: 0 };
   const r = g.tick();
-  assert.strictEqual(r, 'dead');
+  // E 轮：撞 Boss 改为扣 1 点生命，撞满才 dead
+  assert.strictEqual(r, 'hit');
   assert.strictEqual(g.deathReason, 'boss');
+  assert.strictEqual(g.lives, h.Config.START_LIVES - 1);
 });
 
 test('14.7 Boss 关判定与生成：第 3/6 关有 Boss，非 Boss 关无；Boss 蛇身合法', () => {

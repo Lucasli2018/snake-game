@@ -148,7 +148,8 @@ const STATIC_IDS = [
   'stage', 'game',
   'themeBtn', 'moonIcon', 'sunIcon',
   'buffBar', 'buffIc', 'buffTx', 'buffTm',
-  'stageEl', 'stageProgEl'
+  'stageEl', 'stageProgEl',
+  'livesEl', 'comboBar', 'comboMul', 'comboCnt', 'comboTm'
 ];
 
 function makeElement(id, env) {
@@ -486,6 +487,21 @@ function hasDuplicateCells(snake) {
   return false;
 }
 
+/**
+ * E 轮之后撞一次不再致死（只扣 1 点生命），测试里要构造 GameOver 得"撞满生命"。
+ * 这里依然走源码真实路径：反复调用 Game.hit()，返回 'dead' 时调 App.endGame()。
+ */
+function killPlayer(api, reason) {
+  const g = api.Game;
+  let guard = 0;
+  while (g.state !== api.STATE.GAMEOVER && guard < 30) {
+    g.invincible = 0;                       // 跳过免伤，直接接受下一次受击
+    if (g.hit(reason || 'wall') === 'dead') api.App.endGame();
+    guard++;
+  }
+  return g.state;
+}
+
 /** 相邻两节是否真的相邻（曼哈顿距离 1） */
 function isContiguous(snake) {
   for (let i = 1; i < snake.length; i++) {
@@ -561,6 +577,7 @@ module.exports = {
   HTML_TEXT,
   SCRIPT_SRC,
   createHarness,
+  killPlayer,
   hasDuplicateCells,
   isContiguous,
   isOpposite,

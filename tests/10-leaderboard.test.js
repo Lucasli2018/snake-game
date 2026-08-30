@@ -32,6 +32,7 @@ function dieWithScore(h, score) {
   g.dir = h.DIR.left;
   g.dirQueue = [];
   h.pumpFrames(24);              // 累计 >400ms(慢速 interval≈235ms)，确保推进 tick 撞墙
+  H.killPlayer(h);               // E 轮：撞墙只扣 1 点生命，撞满生命数才真正结束
   return g.state === h.STATE.GAMEOVER;
 }
 

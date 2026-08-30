@@ -27,6 +27,9 @@ function setup(h, cells, dirName, food) {
   g.state = h.STATE.PLAYING;
   g.deathReason = '';
   g.win = false;
+  // E 轮：每个用例都从「满生命 + 非免伤」开始，避免上一个用例的免伤残留到下个用例
+  g.invincible = 0;
+  g.lives = h.Config.START_LIVES;
   return g;
 }
 
@@ -47,9 +50,26 @@ test('03.1 四面墙都会判定死亡，死因为 wall', () => {
   for (const c of cases) {
     const g = setup(h, c.cells, c.dir);
     const r = g.tick();
-    assert.strictEqual(r, 'dead', `${c.name}：应判定死亡`);
+    // E 轮：撞墙不再直接结束，而是扣 1 点生命 + 进入免伤
+    assert.strictEqual(r, 'hit', `${c.name}：应判定受击（而非直接死亡）`);
     assert.strictEqual(g.deathReason, 'wall', `${c.name}：死因应为 wall，实际 ${g.deathReason}`);
+    assert.strictEqual(g.lives, h.Config.START_LIVES - 1, `${c.name}：应剩 ${h.Config.START_LIVES - 1} 点生命`);
+    assert.ok(g.invincible > 0, `${c.name}：受击后应进入免伤`);
   }
+});
+
+test('03.1b 生命扣光后才真正死亡（连续撞满 START_LIVES 次）', () => {
+  const h = H.createHarness();
+  const n = h.Config.START_LIVES;
+  for (let i = 0; i < n - 1; i++) {
+    const g = setup(h, [[0, 5], [1, 5], [2, 5]], 'left');
+    g.lives = n - i;
+    assert.strictEqual(g.tick(), 'hit', `剩 ${g.lives} 点时撞墙应只扣血`);
+  }
+  const g = setup(h, [[0, 5], [1, 5], [2, 5]], 'left');
+  g.lives = 1;
+  assert.strictEqual(g.tick(), 'dead', '只剩 1 点时再撞应结束');
+  assert.strictEqual(g.lives, 0);
 });
 
 test('03.2 贴着墙滑行不算撞墙（边界 off-by-one）', () => {
@@ -65,16 +85,17 @@ test('03.2 贴着墙滑行不算撞墙（边界 off-by-one）', () => {
   const g2 = setup(h, [[COLS - 1, 1], [COLS - 1, 2], [COLS - 1, 3]], 'up');
   assert.strictEqual(g2.tick(), 'move', 'y=0 是合法行');
   assert.strictEqual(g2.snake[0].y, 0);
-  assert.strictEqual(g2.tick(), 'dead', 'y=-1 越界，应死亡');
+  assert.strictEqual(g2.tick(), 'hit', 'y=-1 越界，应扣 1 点生命');
   assert.strictEqual(g2.deathReason, 'wall');
 });
 
-test('03.3 死亡瞬间蛇身不被修改（不会半个身子插进墙里）', () => {
+test('03.3 受击瞬间蛇身不被挪出界（不会半个身子插进墙里）', () => {
   const h = H.createHarness();
   const g = setup(h, [[0, 5], [1, 5], [2, 5]], 'left');
   const before = H.snakeOf(g.snake);
-  assert.strictEqual(g.tick(), 'dead');
-  assert.deepStrictEqual(H.snakeOf(g.snake), before, '撞墙后蛇身必须原地不动');
+  assert.strictEqual(g.tick(), 'hit');
+  assert.deepStrictEqual(H.cellOf(g.snake[0]), before[0], '受击后蛇头必须停在原处，不能出界');
+  assert.deepStrictEqual(H.snakeOf(g.snake), before, '初始长度下受击不收缩，蛇身应完全不动');
 });
 
 /* ================================================================== *
@@ -85,16 +106,20 @@ test('03.4 咬到身体中段判定死亡，死因为 self', () => {
   // 蛇头 (5,5) 向右会撞到第 4 节 (6,5)（不是尾巴，尾巴是 (7,5)）
   const g = setup(h, [[5, 5], [5, 6], [6, 6], [6, 5], [7, 5]], 'right');
   const r = g.tick();
-  assert.strictEqual(r, 'dead');
+  assert.strictEqual(r, 'hit', 'E 轮：咬到自己应只扣 1 点生命');
   assert.strictEqual(g.deathReason, 'self', `死因应为 self，实际 ${g.deathReason}`);
 });
 
-test('03.5 咬到身体时蛇身同样不被修改', () => {
+test('03.5 咬到身体时蛇头不前进，蛇身只会收缩不会变长', () => {
   const h = H.createHarness();
   const g = setup(h, [[5, 5], [5, 6], [6, 6], [6, 5], [7, 5]], 'right');
   const before = H.snakeOf(g.snake);
   g.tick();
-  assert.deepStrictEqual(H.snakeOf(g.snake), before);
+  assert.deepStrictEqual(H.cellOf(g.snake[0]), before[0], '受击后蛇头不能前进');
+  assert.ok(g.snake.length <= before.length, '受击后蛇身只能收缩，不能变长');
+  assert.strictEqual(g.snake.length,
+    Math.max(h.Config.START_LEN, before.length - h.Config.HIT_SHRINK),
+    '受击后应恰好收缩 HIT_SHRINK 节（保底 START_LEN）');
 });
 
 test('03.6 死因文案：wall 与 self 分别给出不同提示', () => {
@@ -184,6 +209,11 @@ test('03.10 端到端：撞墙后进入 gameover 并结算最高分，overlay �
 
   h.pumpFrames(24);          // 累计 >400ms(慢速 interval≈235ms)，确保推进 tick 撞墙
 
+  // E 轮：此时只是受击（扣 1 点生命），要撞满生命数才真正结束
+  assert.strictEqual(g.lives, h.Config.START_LIVES - 1, '第一次撞墙应只扣 1 点生命');
+  assert.strictEqual(g.deathReason, 'wall');
+  H.killPlayer(h);           // 继续受击直到生命扣光，走真实的 Game.hit + App.endGame
+
   assert.strictEqual(g.state, h.STATE.GAMEOVER, '应进入 gameover');
   assert.strictEqual(g.deathReason, 'wall');
   assert.strictEqual(g.best, 120, '最高分应被更新');
@@ -201,6 +231,7 @@ test('03.11 端到端：gameover 后继续推进帧不会抛异常、不会复�
   g.dir = h.DIR.left;
   g.dirQueue = [];
   h.pumpFrames(24);
+  H.killPlayer(h);           // E 轮：撞满生命才结束
   assert.strictEqual(g.state, h.STATE.GAMEOVER);
 
   const snapshot = H.snakeOf(g.snake);
@@ -219,6 +250,7 @@ test('03.12 随机对局 3 万步：死亡时死因必为 wall 或 self，且蛇
   const g = h.Game;
   let wall = 0;
   let self = 0;
+  let hits = 0;
   let maxLen = 0;
 
   g.reset();
@@ -229,8 +261,22 @@ test('03.12 随机对局 3 万步：死亡时死因必为 wall 或 self，且蛇
     g.queueDirection(h.DIR[DIRS[(Math.random() * 4) | 0]]);   // 随机方向，制造死亡以覆盖 wall/self 死因
     const r = g.tick();
     maxLen = Math.max(maxLen, g.snake.length);
+    // E 轮：免伤计时由主循环的 updateTimers(dt) 推进，这里按真实 tick 间隔手动推进，
+    // 否则免伤永不到期，蛇会一直穿透而永远撞不死。
+    g.updateTimers(1 / g.tps());
+
+    // E 轮：受击只扣 1 点生命，对局继续
+    if (r === 'hit') {
+      assert.ok(g.deathReason === 'wall' || g.deathReason === 'self',
+        `第 ${i} 步受击死因非法：${g.deathReason}`);
+      assert.ok(g.lives > 0, `第 ${i} 步受击后生命应仍大于 0`);
+      assert.ok(g.invincible > 0, `第 ${i} 步受击后应进入免伤`);
+      hits++;
+      continue;
+    }
 
     if (r === 'dead') {
+      assert.strictEqual(g.lives, 0, `第 ${i} 步死亡时生命应为 0`);
       assert.ok(g.deathReason === 'wall' || g.deathReason === 'self',
         `第 ${i} 步死因非法：${g.deathReason}`);
       if (g.deathReason === 'wall') wall++; else self++;
@@ -248,11 +294,16 @@ test('03.12 随机对局 3 万步：死亡时死因必为 wall 或 self，且蛇
       continue;
     }
     if (r === 'win') { g.reset(); g.state = h.STATE.PLAYING; continue; }
-    assert.ok(!H.hasDuplicateCells(g.snake), `第 ${i} 步蛇身重叠`);
+
+    // 脱节任何时候都不允许；重叠只在免伤期间允许（免伤可穿过自己的身体）
     assert.ok(H.isContiguous(g.snake), `第 ${i} 步蛇身脱节`);
+    if (g.invincible <= 0) {
+      assert.ok(!H.hasDuplicateCells(g.snake), `第 ${i} 步蛇身重叠`);
+    }
   }
   // 随机方向驱动下蛇会频繁撞墙或咬到自己，用于验证两种死因判定与蛇身自洽
   assert.ok(wall > 0 || self > 0, `3 万步应至少发生一次合法死亡（wall=${wall}, self=${self}）`);
+  assert.ok(hits > 0, `E 轮后应出现大量受击而非一撞即死（受击 ${hits} 次）`);
   assert.strictEqual(maxLen, h.Config.START_LEN,
     `非闯关模式下吃食物不变长，蛇长应恒为初始长度 ${h.Config.START_LEN}（实际 ${maxLen}）`);
 });

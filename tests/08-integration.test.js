@@ -34,6 +34,8 @@ test('08.1 走真实主循环玩 20000 帧（含吃食物/升级/死亡/重开�
 
   let deaths = 0;
   let restarts = 0;
+  let hitFrames = 0;        // E 轮：处于「已被扣过血」状态的帧数
+  let upgrades = 0;         // E 轮：过关选卡次数
   let maxLevel = 0;
   let maxLen = 0;
 
@@ -44,15 +46,25 @@ test('08.1 走真实主循环玩 20000 帧（含吃食物/升级/死亡/重开�
       restarts++;
       assert.strictEqual(h.Game.state, h.STATE.PLAYING, '点击再来一局后应重新开局');
     }
+    // E 轮：过关会弹出升级卡并暂停推进，必须由玩家选一张才继续
+    if (h.Game.awaitingUpgrade) {
+      assert.ok(h.UI.pickUpgrade(0), '应能选中第一张升级卡');
+      upgrades++;
+      assert.strictEqual(h.Game.awaitingUpgrade, false, '选完卡应立即恢复推进');
+    }
     // 用"会朝食物走"的驱动，否则蛇只会原地打转，永远升不了级
     if (i % 7 === 0) h.key(KEY_OF[H.autoPickDir(h, true)]);
     h.pump();
+    if (h.Game.lives < h.Config.START_LIVES && h.Game.state === h.STATE.PLAYING) hitFrames++;
     maxLevel = Math.max(maxLevel, h.Game.level);
     maxLen = Math.max(maxLen, h.Game.snake.length);
     assert.ok(h.App.alpha >= 0 && h.App.alpha <= 1, `第 ${i} 帧 alpha 越界：${h.App.alpha}`);
   }
 
-  assert.ok(deaths > 0, '2 万帧里应该至少死过一次');
+  // E 轮：有 3 点生命且受击后蛇身会收缩，2 万帧内未必会「死透」，
+  // 因此这里放宽为「死过」或「受击过」任一成立即可，重点是全程不抛异常。
+  assert.ok(deaths > 0 || hitFrames > 0,
+    `2 万帧里应至少死过一次或受击过一次（死亡 ${deaths} 次，受击帧 ${hitFrames}）`);
   // 吃食物不再变长（变长改由过关触发），故用「升过级」或「蛇变长」证明确实玩进去过
   assert.ok(maxLevel > 0 || maxLen > h.Config.START_LEN,
     `2 万帧里应至少升过级或吃到过食物（最高等级 ${maxLevel}，蛇最长 ${maxLen}）`);
@@ -167,13 +179,16 @@ test('08.9 吃到食物 / 撞毁时会自动触发音效（走主循环真实路
   pumpUntilTick(h, 1);
   assert.ok(ctx.nodesCreated > before, '吃到食物应创建音频节点');
 
-  // 撞墙
+  // 撞墙（E 轮：先扣 1 点生命并播放受击音效，撞满生命数才真正结束）
   h.Game.snake = [{ x: 0, y: 5 }, { x: 1, y: 5 }, { x: 2, y: 5 }];
   h.Game.prevSnake = h.Game.snake.map((c) => ({ x: c.x, y: c.y }));
   h.Game.dir = h.DIR.left;
   h.Game.dirQueue = [];
   const before2 = ctx.nodesCreated;
   h.pumpFrames(24);
+  assert.strictEqual(h.Game.lives, h.Config.START_LIVES - 1, '撞墙应只扣 1 点生命');
+  assert.ok(ctx.nodesCreated > before2, '受击应播放音效');
+  H.killPlayer(h);
   assert.strictEqual(h.Game.state, h.STATE.GAMEOVER);
   assert.ok(ctx.nodesCreated > before2, '撞毁应播放音效');
 });

@@ -131,20 +131,26 @@ test('05.6 吃食物只加分不升级（level 不再随 score 变化，升级�
   }
 });
 
-test('05.7 连续吃 10 颗：每颗 +10 分、蛇身不变长、level 不变（升级改由过关）', () => {
+test('05.7 连续吃 10 颗：按连击倍率加分、蛇身不变长、level 不变（升级改由过关）', () => {
   const h = H.createHarness();
   const g = fresh(h);
   assert.strictEqual(g.level, 0);
   assert.strictEqual(g.score, 0);
+  assert.strictEqual(g.combo, 0, '开局连击应为 0');
   assert.strictEqual(g.snake.length, h.Config.START_LEN);
 
+  // E 轮：第 N 颗得分 = SCORE_PER_FOOD × 连击倍率（第 N 连 = 1 + (N-1)×0.1，封顶 3）
+  let expect = 0;
   for (let i = 1; i <= 10; i++) {
     assert.strictEqual(feedOnce(h), 'eat', `第 ${i} 颗应吃到`);
-    assert.strictEqual(g.score, i * 10, `第 ${i} 颗后得分应为 ${i * 10}，实际 ${g.score}`);
+    expect += Math.round(h.Config.SCORE_PER_FOOD * g.comboMultiplier());
+    assert.strictEqual(g.score, expect, `第 ${i} 颗后累计得分应为 ${expect}，实际 ${g.score}`);
+    assert.strictEqual(g.combo, i, `第 ${i} 颗后连击层数应为 ${i}，实际 ${g.combo}`);
     assert.strictEqual(g.level, 0, `第 ${i} 颗后 level 仍应为 0（升级由过关触发），实际 ${g.level}`);
     assert.strictEqual(g.snake.length, h.Config.START_LEN,
       `第 ${i} 颗后蛇长应恒为 ${h.Config.START_LEN}，实际 ${g.snake.length}`);
   }
+  assert.ok(g.comboBest >= 10, `最高连击应记录到 10 以上，实际 ${g.comboBest}`);
 });
 
 test('05.8 不吃食物时 level / tps 不变（升级只由过关驱动）', () => {

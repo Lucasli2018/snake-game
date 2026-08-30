@@ -129,7 +129,7 @@
     | `frost` | 霜蓝 | 青 | 成就 `combo15`（连击大师） |
     | `crimson` | 赤焰 | 红 | 成就 `clear`（通关） |
 
-    > 想直观看 12 项成就与皮肤联动，可打开 `achievements-showcase.html`（零依赖展示页，数据同源）。
+    > 想直观看 12 项成就与皮肤联动，可打开 `achievements-showcase.html`（零依赖展示页，直接读取 `localStorage['snake-achievements.v1']`，已解锁卡片点亮星标）。
   - **数据统计**：跨局累计总局数 / 通关数 / 总得分 / 总食物 / 总时长 / 最高连击 / 击破 Boss 数，存 `localStorage`，开始屏档案区展示；脏数据 `try-catch` 兜底
 
 ## 实现要点
@@ -361,7 +361,7 @@ FRIENDS_MAX: 20          // 本机最多保存多少条好友成绩
 snake-game/
 ├── index.html   # 完整游戏（HTML + CSS + JS 全部内联，无任何外部资源引用）
 ├── README.md
-├── achievements-showcase.html  # 零依赖成就系统展示页（12 项成就 + 皮肤联动，数据同源，左上角「← 返回主页」）
+├── achievements-showcase.html  # 零依赖成就系统展示页（读取 localStorage 已解锁成就，点亮星标，左上角「← 返回主页」）
 └── tests/       # Node 内置 test runner 测试（harness 抽离 index.html 内联脚本在 vm 沙箱实跑）
     ├── harness.js            # 测试脚手架：最小 DOM / Canvas / WebAudio / localStorage 替身
     ├── 01~12-*.test.js      # 原有玩法 / 状态机 / 存储 / 回归 / B 轮测试

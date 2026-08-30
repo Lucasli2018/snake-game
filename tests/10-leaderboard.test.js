@@ -179,11 +179,11 @@ test('10.10 结束屏按 Enter 键也能保存改名', () => {
   assert.strictEqual(readLb(h)[0].name, 'XY', 'Enter 应触发保存');
 });
 
-test('10.11 名字超过 3 字符自动截断为 3', () => {
+test('10.11 名字超过 10 字符自动截断为 10', () => {
   const h = H.createHarness();
   dieWithScore(h, 60);
-  rename(h, 'ABCD');
-  assert.strictEqual(readLb(h)[0].name, 'ABC', '名字应截断到 3 字符');
+  rename(h, 'ABCDEFGHIJKLMN');
+  assert.strictEqual(readLb(h)[0].name, 'ABCDEFGHIJ', '名字应截断到 10 字符');
 });
 
 test('10.22 改名时首尾空格被裁剪', () => {
@@ -256,12 +256,12 @@ test('10.16 排行榜存储为非数组时降级为空榜', () => {
   assert.ok(h.els.get('panel').innerHTML.includes('暂无记录'), '非数组应显示空榜');
 });
 
-test('10.17 加载时名字超过 3 字符被截断', () => {
-  const seed = JSON.stringify([{ name: 'ABCD', score: 10, date: '2024-01-01T00:00:00.000Z', duration: 3 }]);
+test('10.17 加载时名字超过 10 字符被截断', () => {
+  const seed = JSON.stringify([{ name: 'ABCDEFGHIJKLMN', score: 10, date: '2024-01-01T00:00:00.000Z', duration: 3 }]);
   const h = H.createHarness({ storage: 'ok', storageSeed: { 'snake-leaderboard': seed } });
   h.Game.state = h.STATE.LEADERBOARD;
   h.UI.syncOverlay();
-  assert.ok(h.els.get('panel').innerHTML.includes('>ABC<'), '名字应截断为 ABC');
+  assert.ok(h.els.get('panel').innerHTML.includes('ABCDEFGHIJ'), '名字应截断为 ABCDEFGHIJ');
 });
 
 test('10.18 加载时时长被取整', () => {

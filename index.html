@@ -987,6 +987,47 @@
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
   }
+
+  /* 排行榜：名字、分数、日期/时长/模式分两层，确保 10 字符名字完整展示 */
+  .lb-list.leaderboard-list li {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    align-items: stretch;
+  }
+  .lb-list.leaderboard-list .lb-main {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+  .lb-list.leaderboard-list .lb-ranknum {
+    flex: 0 0 1.7em;
+    text-align: center;
+  }
+  .lb-list.leaderboard-list .lb-name {
+    flex: 1 1 0%;
+    min-width: 0;
+    width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .lb-list.leaderboard-list .lb-score {
+    flex: 0 0 auto;
+    text-align: right;
+  }
+  .lb-list.leaderboard-list .lb-meta-row {
+    display: flex;
+    justify-content: flex-start;
+    min-width: 0;
+  }
+  .lb-list.leaderboard-list .lb-meta-row .lb-meta {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .lb-empty {
     font-size: clamp(11px, 2.6cqw, 13px);
     color: #94a3b8;
@@ -1648,7 +1689,7 @@
     /** 校验并裁剪单条记录 */
     normalize: function (rec) {
       if (!rec || typeof rec !== 'object') return null;
-      const name = String(rec.name || '').slice(0, 3);
+      const name = String(rec.name || '').slice(0, 10);
       const score = Number(rec.score) || 0;
       const duration = Math.max(0, Math.floor(Number(rec.duration) || 0));
       let date = rec.date;
@@ -4474,6 +4515,7 @@
           '<p class="desc">' + reason + '</p>' +
           lbHtml +
           '<button class="btn" id="ovBtn" type="button">再来一局</button>' +
+          '<p class="hint">按 R / 空格 / 点击屏幕 重新开始</p>' +
           (shareCode
             ? '<div class="share-block">' +
                 '<div class="share-label">成绩分享码（发给好友比一比）</div>' +
@@ -4483,8 +4525,7 @@
                   '<button class="btn ghost" id="ovCardSave" type="button">保存成绩卡</button>' +
                 '</div>' +
               '</div>'
-            : '') +
-          '<p class="hint">按 R / 空格 / 点击屏幕 重新开始</p>';
+            : '') ;
 
       } else if (s === STATE.LEADERBOARD) {
         html =
@@ -4832,11 +4873,15 @@
           const rankIcon = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
           rows +=
             '<li class="' + topCls + selfCls + '">' +
-              '<span class="lb-ranknum">' + rankIcon + '</span>' +
-              '<span class="lb-name">' + escapeHtml(e.name) + '</span>' +
-              '<span class="lb-score">' + e.score + '</span>' +
-              '<span class="lb-meta">' + formatLbDate(e.date) + ' · ' + formatLbDuration(e.duration) +
-                ' · ' + modeName(e.mode) + '</span>' +
+              '<div class="lb-main">' +
+                '<span class="lb-ranknum">' + rankIcon + '</span>' +
+                '<span class="lb-name">' + escapeHtml(e.name) + '</span>' +
+                '<span class="lb-score">' + e.score + '</span>' +
+              '</div>' +
+              '<div class="lb-meta-row">' +
+                '<span class="lb-meta">' + formatLbDate(e.date) + ' · ' + formatLbDuration(e.duration) +
+                  ' · ' + modeName(e.mode) + '</span>' +
+              '</div>' +
             '</li>';
         }
       }
@@ -4847,7 +4892,7 @@
             '<span>排行榜 TOP ' + Config.LEADERBOARD_MAX + '</span>' +
             '<button id="lbClear" type="button" class="lb-danger">' + clearLabel + '</button>' +
           '</div>' +
-          '<ul class="lb-list">' + rows + '</ul>' +
+          '<ul class="lb-list leaderboard-list">' + rows + '</ul>' +
         '</div>';
     },
 

@@ -141,7 +141,7 @@
   /* ============================ HUD ============================ */
   .hud {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 10px;
     flex: 0 0 auto;
   }
@@ -172,6 +172,13 @@
   .stat.best  .value { color: var(--warn); }
   .stat.level .value { color: var(--accent); }
   .stat .value small { font-size: 12px; font-weight: 700; color: var(--ink-faint); }
+
+  /* 生命：实心为剩余，空心为已消耗 */
+  .stat.lives .value { font-size: 20px; letter-spacing: 1px; line-height: 1.35; }
+  .stat.lives .life { color: var(--danger); }
+  .stat.lives .life.gone { color: var(--line); }
+  .stat.lives .value.low { animation: life-pulse .7s ease-in-out infinite; }
+  @keyframes life-pulse { 0%,100% { opacity: 1 } 50% { opacity: .45 } }
 
   .speed-track {
     margin-top: 6px;
@@ -284,6 +291,115 @@
     border-left: 1px solid rgba(255,255,255,.4);
   }
   @keyframes buff-in { from { opacity: 0; transform: translateX(-50%) translateY(-6px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+
+  /* ===================== 连击条（E 轮） ===================== */
+  /* 与 buff-bar 反向：这条贴画布顶部，buff-bar 贴底部，互不遮挡 */
+  .combo-bar {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 13px;
+    border-radius: 99px;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: .3px;
+    pointer-events: none;
+    z-index: 3;
+    backdrop-filter: blur(3px);
+    color: #f5f3ff;
+    background: linear-gradient(100deg, rgba(167,139,250,.92), rgba(109,40,217,.9));
+    box-shadow: 0 6px 16px -6px rgba(139,92,246,.8);
+    animation: buff-in .18s ease;
+  }
+  .combo-bar[hidden] { display: none; }
+  .combo-bar.hot {
+    background: linear-gradient(100deg, rgba(251,146,60,.94), rgba(217,119,6,.9));
+    box-shadow: 0 6px 18px -6px rgba(249,115,22,.85);
+  }
+  .combo-bar .combo-ic { font-size: 14px; line-height: 1; }
+  .combo-bar .combo-mul { font-variant-numeric: tabular-nums; }
+  .combo-bar .combo-cnt { font-size: 11px; font-weight: 700; opacity: .85; }
+  .combo-bar .combo-tm {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    opacity: .92;
+    padding-left: 5px;
+    margin-left: 1px;
+    border-left: 1px solid rgba(255,255,255,.4);
+  }
+
+  /* ===================== 升级卡（E 轮） ===================== */
+  .up-cards {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(6px, 1.6cqw, 10px);
+    width: 100%;
+  }
+  .up-card {
+    appearance: none;
+    display: flex;
+    align-items: center;
+    gap: clamp(8px, 2.2cqw, 12px);
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    font-family: inherit;
+    color: #f8fafc;
+    background: rgba(148,163,184,.10);
+    border: 1px solid rgba(148,163,184,.22);
+    border-radius: 12px;
+    padding: clamp(8px, 2.2cqw, 12px) clamp(10px, 2.6cqw, 14px);
+    transition: background .15s, border-color .15s, transform .1s;
+  }
+  .up-card:hover { background: rgba(167,139,250,.20); border-color: rgba(167,139,250,.55); }
+  .up-card:active { transform: scale(.985); }
+  .up-card .up-ic {
+    flex: 0 0 auto;
+    width: 2.1em;
+    height: 2.1em;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    font-size: clamp(14px, 3.4cqw, 18px);
+    background: rgba(167,139,250,.22);
+    border: 1px solid rgba(167,139,250,.42);
+  }
+  .up-card .up-body { min-width: 0; flex: 1 1 auto; }
+  .up-card .up-name {
+    font-size: clamp(12px, 3cqw, 15px);
+    font-weight: 800;
+    letter-spacing: .3px;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .up-card .up-lv {
+    font-size: .78em;
+    font-weight: 700;
+    color: #c4b5fd;
+    font-variant-numeric: tabular-nums;
+  }
+  .up-card .up-desc {
+    margin-top: 2px;
+    font-size: clamp(10px, 2.5cqw, 12px);
+    font-weight: 500;
+    color: #cbd5e1;
+    line-height: 1.45;
+  }
+  .up-card .up-key {
+    flex: 0 0 auto;
+    font-size: 10px;
+    font-weight: 800;
+    color: #94a3b8;
+    border: 1px solid rgba(148,163,184,.35);
+    border-radius: 6px;
+    padding: 2px 5px;
+    line-height: 1.2;
+  }
 
   /* ============================ 遮罩层 ============================
      关键：所有遮罩模板都使用正常文档流 flex 列布局，间距交给 gap，
@@ -419,10 +535,10 @@
   .rank-badge.bronze .medal { background: linear-gradient(140deg, #fdba74, #b45309); color: #431407; }
   .rank-badge .rank-num { font-variant-numeric: tabular-nums; }
 
-  /* ====================== GameOver 三格统计 ====================== */
+  /* ====================== GameOver 四格统计（2×2） ====================== */
   .go-stats {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
     gap: clamp(6px, 1.6cqw, 10px);
     width: 100%;
   }
@@ -458,6 +574,7 @@
     text-align: center;
   }
   .go-stats .cell.score .v { color: #4ade80; }
+  .go-stats .cell.combo .v { color: #c4b5fd; }
   .go-stats .cell.len   .v { color: #38bdf8; }
   .go-stats .cell.speed .v { color: #fbbf24; font-size: clamp(12px, 3.2cqw, 18px); }
   .go-stats .cell.speed .v small { font-size: 0.6em; color: #cbd5e1; font-weight: 700; margin-left: 2px; }
@@ -670,6 +787,7 @@
     body { padding: 12px 10px 10px; }
     .title { font-size: 17px; }
     .subtitle { display: none; }
+    .hud { grid-template-columns: repeat(2, 1fr); }
     .stat { padding: 7px 9px 8px; }
     .stat .value { font-size: 18px; }
     .stat .label { font-size: 10px; }
@@ -741,6 +859,10 @@
       <div class="value">Lv.<span id="levelEl">1</span></div>
       <div class="speed-track"><div class="speed-fill" id="speedFill"></div></div>
     </div>
+    <div class="stat lives">
+      <div class="label">生命</div>
+      <div class="value" id="livesEl">♥♥♥</div>
+    </div>
     </section>
 
   <!-- 关卡指示条：放在 HUD 与画布之间（画布外面），显示「第 N 关 · 食物 X/Y」，绝不遮挡游戏界面 -->
@@ -761,6 +883,14 @@
           <span class="buff-ic" id="buffIc">⚡</span>
           <span class="buff-tx" id="buffTx">加速</span>
           <span class="buff-tm" id="buffTm">5.0s</span>
+        </div>
+
+        <!-- 连击条（E 轮）：有连击时显示在画布顶部中央，pointer-events:none 不抢操作 -->
+        <div class="combo-bar" id="comboBar" hidden>
+          <span class="combo-ic">✦</span>
+          <span class="combo-mul" id="comboMul">×1.0</span>
+          <span class="combo-cnt" id="comboCnt">连击 0</span>
+          <span class="combo-tm" id="comboTm">8.0s</span>
         </div>
 
         <div class="overlay" id="overlay">
@@ -824,8 +954,57 @@
     BOSS_EVERY: 3,           // 之后每隔几关再来一次（3、6…）
     BOSS_LEN: 7,             // Boss 蛇初始长度
     BOSS_SPEED_TPS: 4,       // Boss 蛇移动速度（格/秒，独立于玩家）
-    GROW_PER_STAGE: 2        // 每过一关蛇身增长的节数（吃普通食物不变长，升级才变长）
+    GROW_PER_STAGE: 2,       // 每过一关蛇身增长的节数（吃普通食物不变长，升级才变长）
+
+    /* ---- E 轮：生命值 / Combo 连击 / 过关三选一 ---- */
+    START_LIVES: 3,          // 初始生命（撞毁只扣 1 点，扣光才结束）
+    MAX_LIVES: 6,            // 生命上限（防止「强心」无限叠）
+    HIT_INVINCIBLE: 1.2,     // 受击后无敌秒数（期间穿透一切，不重复扣血）
+    HIT_SHRINK: 2,           // 受击后蛇身收缩节数（给玩家喘息空间）
+    COMBO_WINDOW: 8,         // 连击窗口秒数（超时未再进食则清零）
+    COMBO_STEP: 0.1,         // 每层连击加成（第 N 层 = 1 + (N-1) × 0.1）
+    COMBO_MAX_MUL: 3,        // 连击倍率上限
+    SHIELD_TIME: 6,          // 护盾果提供的免伤秒数
+    SHIELD_TTL: 8,           // 护盾果在场上停留秒数
+    CALM_TPS: 0.8            // 「稳如老狗」每层降低的基础速度（格/秒）
   };
+
+  /**
+   * E 轮：过关三选一的升级卡池。
+   * - max：可叠加次数（heal 用 available 做动态门槛，不设上限）
+   * - available：是否进入候选池（满血时不抽到急救包）
+   * - apply：直接改 Game 字段，由 Game.applyUpgrade 统一调用
+   */
+  const UPGRADES = [
+    {
+      id: 'heart', icon: '♥', name: '强心', desc: '生命上限 +1，并立即回复 1 点', max: 3,
+      apply: function (g) {
+        g.maxLives = Math.min(Config.MAX_LIVES, g.maxLives + 1);
+        if (g.lives < g.maxLives) g.lives++;
+      }
+    },
+    {
+      id: 'combo', icon: '⚡', name: '连击大师', desc: '连击窗口 +2 秒，更容易续上', max: 3,
+      apply: function (g) { g.comboWindow += 2; }
+    },
+    {
+      id: 'greed', icon: '★', name: '贪婪', desc: '所有得分 +15%', max: 3,
+      apply: function (g) { g.scoreMul += 0.15; }
+    },
+    {
+      id: 'shield', icon: '◈', name: '护盾果', desc: '特殊食物加入护盾果，吃到获 6 秒免伤', max: 2,
+      apply: function (g) { g.shieldLevel++; }
+    },
+    {
+      id: 'calm', icon: '❄', name: '稳如老狗', desc: '基础速度 −0.8 格/秒', max: 3,
+      apply: function (g) { g.calmLevel++; }
+    },
+    {
+      id: 'heal', icon: '✚', name: '急救包', desc: '立即回复 1 点生命', max: 99,
+      available: function (g) { return g.lives < g.maxLives; },
+      apply: function (g) { if (g.lives < g.maxLives) g.lives++; }
+    }
+  ];
 
   const DIR = {
     up:    { x: 0,  y: -1 },
@@ -1059,17 +1238,40 @@
       this.tone({ freq: paused ? 520 : 380, endFreq: paused ? 380 : 520, type: 'sine', dur: 0.1, gain: 0.08 });
     },
 
-    /** 吃到特殊食物：金蛇果明亮上扬、冰冻果清冷下行、限时奖励轻快叮咚 */
+    /** 吃到特殊食物：金蛇果明亮上扬、冰冻果清冷下行、限时奖励轻快叮咚、护盾果浑厚护体 */
     special: function (kind) {
       if (kind === 'gold') {
         this.tone({ freq: 880, endFreq: 1320, type: 'triangle', dur: 0.14, gain: 0.13 });
       } else if (kind === 'ice') {
         this.tone({ freq: 540, endFreq: 300, type: 'sine', dur: 0.18, gain: 0.12 });
+      } else if (kind === 'shield') {
+        this.tone({ freq: 392, endFreq: 588, type: 'sine', dur: 0.2, gain: 0.12 });
+        this.tone({ freq: 588, endFreq: 784, type: 'triangle', dur: 0.16, gain: 0.09, delay: 0.07 });
       } else {
         // bonus：两声叮咚
         this.tone({ freq: 740, endFreq: 988, type: 'triangle', dur: 0.1, gain: 0.12 });
         this.tone({ freq: 988, endFreq: 1318, type: 'sine', dur: 0.1, gain: 0.08, delay: 0.08 });
       }
+    },
+
+    /** E 轮：受击（扣 1 点生命但未结束）——比 crash 短促、更"闷"，听感上区别于真正的死亡 */
+    hit: function () {
+      this.tone({ freq: 300, endFreq: 120, type: 'square', dur: 0.18, gain: 0.13 });
+      this.noise(0.16, 0.09, 0.005);
+    },
+
+    /** E 轮：拾取升级卡——明亮上行三音 */
+    upgrade: function () {
+      const notes = [523.25, 698.46, 880];
+      for (let i = 0; i < notes.length; i++) {
+        this.tone({ freq: notes[i], type: 'triangle', dur: 0.13, gain: 0.11, delay: i * 0.06 });
+      }
+    },
+
+    /** E 轮：过关弹出升级卡——两声提示，告知"该做选择了" */
+    offer: function () {
+      this.tone({ freq: 660, type: 'sine', dur: 0.1, gain: 0.10 });
+      this.tone({ freq: 880, type: 'sine', dur: 0.12, gain: 0.09, delay: 0.1 });
     }
   };
 
@@ -1111,9 +1313,26 @@
     stageBannerText: '',       // 关卡横幅文案（如「第 3 关」）
     stageBannerTime: 0,        // 关卡横幅剩余显示时间（秒）
 
-    /** 当前速度（格/秒），叠加临时速度 buff（金蛇果加速 / 冰冻果减速） */
+    /* ---- E 轮：生命值 / Combo / 升级卡 ---- */
+    lives: 3,                  // 当前生命（撞毁扣 1 点，扣光才结束）
+    maxLives: 3,               // 生命上限（「强心」可提升）
+    invincible: 0,             // 免伤剩余秒数（受击后 1.2s / 护盾果 6s）
+    combo: 0,                  // 当前连击层数
+    comboTimer: 0,             // 连击窗口剩余秒数（归零则连击清零）
+    comboWindow: 8,            // 连击窗口长度（「连击大师」可提升）
+    comboBest: 0,              // 本局最高连击（结算展示）
+    scoreMul: 1,               // 全局得分倍率（「贪婪」可提升）
+    shieldLevel: 0,            // 「护盾果」等级（>0 时特殊食物池加入护盾果）
+    calmLevel: 0,              // 「稳如老狗」等级（每层降低基础速度）
+    upgradeLevels: null,       // { [upgradeId]: 已选次数 }
+    pendingUpgrades: null,     // 待选的三张升级卡（非 null 时游戏暂停等待选择）
+    awaitingUpgrade: false,    // 是否正在等待玩家选卡（主循环据此停止推进逻辑）
+    _lastGain: 0,              // 最近一次吃食物实际得分（供飘字显示倍率后数值）
+
+    /** 当前速度（格/秒）；基础速度受「稳如老狗」削减，再叠加临时速度 buff */
     tps: function () {
-      const base = Math.min(Config.MAX_TPS, Config.BASE_TPS + this.level * Config.TPS_PER_LEVEL);
+      const raw = Config.BASE_TPS + this.level * Config.TPS_PER_LEVEL - this.calmLevel * Config.CALM_TPS;
+      const base = Math.min(Config.MAX_TPS, Math.max(Config.SPECIAL_MIN_TPS, raw));
       const eff = base + (this.speedBuffAdd || 0);
       return Math.max(Config.SPECIAL_MIN_TPS, eff);
     },
@@ -1164,6 +1383,22 @@
       this.bossHitPlayer = false;
       this.stageBannerText = '';
       this.stageBannerTime = 0;
+
+      /* ---- E 轮：生命 / 连击 / 升级 ---- */
+      this.lives = Config.START_LIVES;
+      this.maxLives = Config.START_LIVES;
+      this.invincible = 0;
+      this.combo = 0;
+      this.comboTimer = 0;
+      this.comboWindow = Config.COMBO_WINDOW;
+      this.comboBest = 0;
+      this.scoreMul = 1;
+      this.shieldLevel = 0;
+      this.calmLevel = 0;
+      this.upgradeLevels = {};
+      this.pendingUpgrades = null;
+      this.awaitingUpgrade = false;
+      this._lastGain = 0;
 
       this.placeFood();
     },
@@ -1259,7 +1494,8 @@
       const ttlMap = {
         gold: Config.SPECIAL_GOLD_TTL,
         ice: Config.SPECIAL_ICE_TTL,
-        bonus: Config.SPECIAL_BONUS_TIME
+        bonus: Config.SPECIAL_BONUS_TIME,
+        shield: Config.SHIELD_TTL
       };
       const ttl = ttlMap[type] || Config.SPECIAL_BONUS_TIME;
       this.special = { x: cell.x, y: cell.y, type: type, ttl: ttl, maxTtl: ttl };
@@ -1275,6 +1511,8 @@
     spawnSpecial: function (forceType) {
       if (this.special) return null;
       const types = ['gold', 'ice', 'bonus'];
+      // E 轮：拿到「护盾果」升级后，护盾果进入刷新池
+      if (this.shieldLevel > 0) types.push('shield');
       const type = forceType || types[Math.floor(Math.random() * types.length)];
       return this.placeSpecial(type) ? type : null;
     },
@@ -1380,6 +1618,8 @@
       // 关卡横幅
       this.stageBannerText = '第 ' + this.stage + ' 关';
       this.stageBannerTime = 2.0;
+      // E 轮：过关抽三张升级卡（由主循环弹出，玩家选完才继续推进）
+      this.pendingUpgrades = this.rollUpgrades();
     },
 
     /** 在尾部沿合法方向延伸 n 节（升级增长蛇长用；吃食物本身等长，不增长）。
@@ -1475,7 +1715,9 @@
         this.speedBuffAdd = -Config.SPECIAL_ICE_ADD;
         this.speedBuffTime = Config.SPECIAL_ICE_TIME;
       } else if (sp.type === 'bonus') {
-        this.addScore(Config.SPECIAL_BONUS_SCORE);
+        this.addScore(Math.round(Config.SPECIAL_BONUS_SCORE * this.scoreMul));
+      } else if (sp.type === 'shield') {
+        this.invincible = Config.SHIELD_TIME;
       }
     },
 
@@ -1497,6 +1739,19 @@
           this.speedBuffAdd = 0;
         }
       }
+      // E 轮：免伤时间（受击无敌 / 护盾果）
+      if (this.invincible > 0) {
+        this.invincible -= dt;
+        if (this.invincible < 0) this.invincible = 0;
+      }
+      // E 轮：连击窗口（超时未再进食则清零）
+      if (this.comboTimer > 0) {
+        this.comboTimer -= dt;
+        if (this.comboTimer <= 0) {
+          this.comboTimer = 0;
+          this.combo = 0;
+        }
+      }
       if (this.special) {
         this.special.ttl -= dt;
         if (this.special.ttl <= 0) this.special = null;
@@ -1514,40 +1769,106 @@
       }
     },
 
+    /** E 轮：当前连击倍率——第 N 连 = 1 + (N-1) × COMBO_STEP，封顶 COMBO_MAX_MUL */
+    comboMultiplier: function () {
+      if (this.combo <= 1) return 1;
+      return Math.min(Config.COMBO_MAX_MUL, 1 + (this.combo - 1) * Config.COMBO_STEP);
+    },
+
+    /** E 轮：吃到普通食物——推进连击、按倍率加分，返回本次实际得分 */
+    gainFoodScore: function () {
+      this.combo++;
+      if (this.combo > this.comboBest) this.comboBest = this.combo;
+      this.comboTimer = this.comboWindow;
+      const gain = Math.round(Config.SCORE_PER_FOOD * this.comboMultiplier() * this.scoreMul);
+      this.addScore(gain);
+      this._lastGain = gain;
+      return gain;
+    },
+
+    /**
+     * E 轮：受击——扣 1 点生命而不是直接结束。
+     * - 还有命：进入 1.2s 免伤 + 蛇身收缩（喘息空间），返回 'hit'
+     * - 没命了：返回 'dead'（由主循环走 endGame）
+     */
+    hit: function (reason) {
+      this.deathReason = reason;
+      this.combo = 0;
+      this.comboTimer = 0;
+      this.lives--;
+      if (this.lives <= 0) {
+        this.lives = 0;
+        return 'dead';
+      }
+      this.invincible = Config.HIT_INVINCIBLE;
+      const target = Math.max(Config.START_LEN, this.snake.length - Config.HIT_SHRINK);
+      while (this.snake.length > target) this.snake.pop();
+      this.prevSnake = this.snake.map(function (s) { return { x: s.x, y: s.y }; });
+      return 'hit';
+    },
+
+    /** E 轮：抽三张升级卡（排除已满级 / 当前不可用的） */
+    rollUpgrades: function () {
+      const pool = [];
+      for (let i = 0; i < UPGRADES.length; i++) {
+        const u = UPGRADES[i];
+        const lv = this.upgradeLevels[u.id] || 0;
+        if (lv >= u.max) continue;
+        if (u.available && !u.available(this)) continue;
+        pool.push(u);
+      }
+      for (let i = pool.length - 1; i > 0; i--) {      // Fisher-Yates 洗牌
+        const j = Math.floor(Math.random() * (i + 1));
+        const tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
+      }
+      return pool.slice(0, 3);
+    },
+
+    /** E 轮：选中一张升级卡——生效、记等级、关闭选卡面板 */
+    applyUpgrade: function (id) {
+      let card = null;
+      if (this.pendingUpgrades) {
+        for (let i = 0; i < this.pendingUpgrades.length; i++) {
+          if (this.pendingUpgrades[i].id === id) { card = this.pendingUpgrades[i]; break; }
+        }
+      }
+      if (!card) return false;
+      card.apply(this);
+      this.upgradeLevels[id] = (this.upgradeLevels[id] || 0) + 1;
+      this.pendingUpgrades = null;
+      this.awaitingUpgrade = false;
+      return true;
+    },
+
     /**
      * 推进一个逻辑步。
-     * @returns {'move'|'eat'|'dead'}
+     * @returns {'move'|'eat'|'special'|'stageclear'|'hit'|'dead'|'win'}
      */
     tick: function () {
       const dir = this.consumeDirection();
       const head = this.snake[0];
-      const nx = head.x + dir.x;
-      const ny = head.y + dir.y;
+      let nx = head.x + dir.x;
+      let ny = head.y + dir.y;
 
-      // 撞墙
+      // 免伤期间（受击无敌 / 护盾果）：撞上任何东西都停在原地、不扣血 —— 相当于一次短促的受击硬直。
+      // 之所以不「环绕」也不「穿透」：环绕会让蛇头与第二节相隔整张棋盘，折线渲染会画出一条
+      // 贯穿全屏的断线；穿透身体则会产生重叠格（蛇身画出来会打结）。宁可停这 1.2 秒。
+      const harmless = this.invincible > 0;
+
       if (nx < 0 || ny < 0 || nx >= Config.COLS || ny >= Config.ROWS) {
-        this.deathReason = 'wall';
-        return 'dead';
+        return harmless ? 'blocked' : this.hit('wall');
       }
-
-      // 撞障碍物（D 轮）
       if (this.isObstacle(nx, ny)) {
-        this.deathReason = 'obstacle';
-        return 'dead';
+        return harmless ? 'blocked' : this.hit('obstacle');
       }
-
-      // 撞 Boss 蛇身（D 轮）
       if (this.boss && this.bossOccupies(nx, ny, this.boss)) {
-        this.deathReason = 'boss';
-        return 'dead';
+        return harmless ? 'blocked' : this.hit('boss');
       }
-
       // 撞自己：移动是等长的（尾巴会让出当前格），因此最后一节不计入碰撞
       const limit = this.snake.length - 1;
       for (let i = 0; i < limit; i++) {
         if (this.snake[i].x === nx && this.snake[i].y === ny) {
-          this.deathReason = 'self';
-          return 'dead';
+          return harmless ? 'blocked' : this.hit('self');
         }
       }
 
@@ -1557,7 +1878,7 @@
 
       // 吃普通食物：加分 + 推进关卡，但蛇身不变长（等长移动）
       if (this.food.x === nx && this.food.y === ny) {
-        this.addScore(Config.SCORE_PER_FOOD);
+        this.gainFoodScore();
         this.headPulse = 1;
         this.stageFoods++;
         // 关卡推进（仅闯关模式）：吃满目标食物即过关
@@ -1605,6 +1926,11 @@
       this.speedBuffTime = 0;
       this.specialSpawnTimer = 0;
       this.bossHitPlayer = false;
+      this.invincible = 0;
+      this.combo = 0;
+      this.comboTimer = 0;
+      this.pendingUpgrades = null;
+      this.awaitingUpgrade = false;
       if (this.score > this.best) {
         this.best = this.score;
         this.isRecord = true;
@@ -1955,6 +2281,9 @@
       } else if (sp.type === 'ice') {
         core1 = '#cffafe'; core2 = '#22d3ee'; core3 = '#0e7490';
         glow = 'rgba(34,211,238,0.34)'; ring = 'rgba(103,232,249,0.5)'; spark = '#ecfeff';
+      } else if (sp.type === 'shield') {   // E 轮：护盾果（青绿）
+        core1 = '#f0fdfa'; core2 = '#2dd4bf'; core3 = '#0f766e';
+        glow = 'rgba(45,212,191,0.34)'; ring = 'rgba(94,234,212,0.5)'; spark = '#ccfbf1';
       } else { // bonus
         core1 = '#fde68a'; core2 = '#fbbf24'; core3 = '#d97706';
         glow = 'rgba(250,204,21,0.34)'; ring = 'rgba(253,224,71,0.5)'; spark = '#fffde7';
@@ -1992,7 +2321,21 @@
       g.addColorStop(1, core3);
       ctx.fillStyle = g;
 
-      if (sp.type === 'bonus') {
+      if (sp.type === 'shield') {
+        // E 轮：护盾果 —— 盾牌造型
+        const sw = r * 0.92, sh = r * 1.16;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.beginPath();
+        ctx.moveTo(-sw, -sh * 0.72);
+        ctx.lineTo(sw, -sh * 0.72);
+        ctx.lineTo(sw, sh * 0.12);
+        ctx.quadraticCurveTo(sw * 0.72, sh * 0.86, 0, sh);
+        ctx.quadraticCurveTo(-sw * 0.72, sh * 0.86, -sw, sh * 0.12);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      } else if (sp.type === 'bonus') {
         // 限时奖励：菱形（旋转方块）造型，更醒目
         ctx.save();
         ctx.translate(x, y);
@@ -2027,8 +2370,8 @@
       ctx.fillRect(-s, -s * 0.32, s * 2, s * 0.64);
       ctx.restore();
 
-      // 金蛇果 / 冰冻果 的果梗 + 叶子（bonus 不需要）
-      if (sp.type !== 'bonus') {
+      // 金蛇果 / 冰冻果 的果梗 + 叶子（bonus 与 shield 不需要）
+      if (sp.type !== 'bonus' && sp.type !== 'shield') {
         ctx.strokeStyle = sp.type === 'gold' ? '#7c4a12' : '#0e7490';
         ctx.lineWidth = Math.max(1, cell * 0.075);
         ctx.lineCap = 'round';
@@ -2094,6 +2437,20 @@
       ctx.lineWidth = cell * 0.24;
       ctx.stroke(path);
       ctx.restore();
+
+      // 4.5) E 轮：免伤期间蛇身外圈闪烁，明确告诉玩家"现在撞不死"
+      //      Fx.time 在暂停时不推进，闪烁随画面一起定格
+      if (Game.invincible > 0) {
+        const blink = 0.4 + 0.35 * Math.sin(Fx.time * 18);
+        ctx.save();
+        ctx.globalAlpha = Math.max(0.12, Math.min(0.85, blink));
+        ctx.strokeStyle = '#a5f3fc';
+        ctx.lineWidth = cell * 1.02;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.stroke(path);
+        ctx.restore();
+      }
 
       // 5) 蛇头：眼睛 + 嘴巴
       this.drawHead(pts[0], pts[Math.min(1, n - 1)]);
@@ -2380,10 +2737,20 @@
         buffTx: document.getElementById('buffTx'),
         buffTm: document.getElementById('buffTm'),
         stageEl: document.getElementById('stageEl'),
-        stageProgEl: document.getElementById('stageProgEl')
+        stageProgEl: document.getElementById('stageProgEl'),
+        // E 轮：生命 + 连击
+        livesEl: document.getElementById('livesEl'),
+        comboBar: document.getElementById('comboBar'),
+        comboMul: document.getElementById('comboMul'),
+        comboCnt: document.getElementById('comboCnt'),
+        comboTm: document.getElementById('comboTm')
       };
 
-      this.els.overlay.addEventListener('click', function () { App.primaryAction(); });
+      this.els.overlay.addEventListener('click', function () {
+        // E 轮：选卡期间点空白处不响应，避免把选卡面板顶掉
+        if (Game.awaitingUpgrade) return;
+        App.primaryAction();
+      });
       this.els.soundBtn.addEventListener('click', function (e) {
         e.stopPropagation();
         Sfx.muted = !Sfx.muted;
@@ -2451,6 +2818,18 @@
           ? ('食物 ' + Game.stageFoods + '/' + Game.stageTarget)
           : '';
       }
+
+      // E 轮：生命（满的实心 ♥，已消耗的空心 ♡；剩 1 点时脉动告警）
+      if (this.els.livesEl) {
+        let h = '';
+        for (let i = 0; i < Game.maxLives; i++) {
+          const alive = i < Game.lives;
+          h += '<span class="life' + (alive ? '' : ' gone') + '">' + (alive ? '♥' : '♡') + '</span>';
+        }
+        this.els.livesEl.innerHTML = h;
+        const inGame = (Game.state === STATE.PLAYING || Game.state === STATE.PAUSED);
+        this.els.livesEl.classList.toggle('low', inGame && Game.lives === 1);
+      }
     },
 
     /**
@@ -2475,18 +2854,53 @@
       }
     },
 
+    /**
+     * E 轮：刷新连击条（有连击时显示在画布顶部中央）。
+     * 与 buff-bar 一个贴顶一个贴底，互不遮挡；暂停时随画面一起定格。
+     */
+    updateCombo: function () {
+      const bar = this.els.comboBar;
+      if (!bar) return;
+      const active = (Game.state === STATE.PLAYING || Game.state === STATE.PAUSED);
+      if (active && Game.combo > 0 && Game.comboTimer > 0) {
+        bar.hidden = false;
+        bar.classList.toggle('hot', Game.combo >= 5);
+        if (this.els.comboMul) this.els.comboMul.textContent = '×' + Game.comboMultiplier().toFixed(1);
+        if (this.els.comboCnt) this.els.comboCnt.textContent = '连击 ' + Game.combo;
+        if (this.els.comboTm)  this.els.comboTm.textContent  = Game.comboTimer.toFixed(1) + 's';
+      } else {
+        bar.hidden = true;
+      }
+    },
+
     /** 根据状态渲染遮罩面板内容（三屏均走正常文档流，用 gap 隔开层级） */
     syncOverlay: function () {
       const s = Game.state;
       let html = '';
+
+      // E 轮：过关三选一 —— 优先级高于其它面板（此时游戏逻辑已暂停）
+      if (Game.awaitingUpgrade && Game.pendingUpgrades && Game.pendingUpgrades.length) {
+        html =
+          '<div class="tag">LEVEL UP</div>' +
+          '<h2>第 ' + Game.stage + ' 关 · 选一项强化</h2>' +
+          this.renderUpgradeCards() +
+          '<p class="hint">按 <b>1</b> / <b>2</b> / <b>3</b> 或点击卡片选择</p>';
+        this.els.panel.innerHTML = html;
+        this.els.overlay.hidden = false;
+        this.updateBuff();
+        this.updateCombo();
+        this.bindUpgradeCards();
+        return;
+      }
 
       if (s === STATE.READY) {
         html =
           '<div class="tag green">READY</div>' +
           '<h2>贪吃蛇</h2>' +
           '<p class="desc">用 <b>↑ ↓ ← →</b> 或 <b>W A S D</b> 控制方向。<br>' +
-          '吃到苹果加分（蛇身不变长），过关升级变长提速；吃满目标食物进入下一关；<br>' +
-          '第 ' + Config.BOSS_FIRST_STAGE + ' / ' + Config.TOTAL_STAGES + ' 关迎战 <b>Boss 蛇</b>，撞墙、撞障碍或撞到它就结束。</p>' +
+          '撞毁只扣 <b>1</b> 点生命（共 ' + Config.START_LIVES + ' 点），扣光才结束；连着吃可叠 <b>连击倍率</b>。<br>' +
+          '每过一关从三张 <b>升级卡</b> 中选一张；第 ' + Config.BOSS_FIRST_STAGE + ' / ' +
+          Config.TOTAL_STAGES + ' 关迎战 <b>Boss 蛇</b>。</p>' +
           '<button class="btn" id="ovBtn" type="button">开始游戏</button>' +
           '<p class="hint">按 空格 / 点击屏幕 开始</p>' +
           this.renderLeaderboardBlock();
@@ -2544,6 +2958,7 @@
           (Game.isRecord ? '<div class="record-badge">★ 新纪录</div>' : '') +
           '<div class="go-stats">' +
             '<div class="cell score"><div class="k">本局得分</div><div class="v">' + Game.score + '</div></div>' +
+            '<div class="cell combo"><div class="k">最高连击</div><div class="v">' + Game.comboBest + '</div></div>' +
             '<div class="cell len"><div class="k">蛇身长度</div><div class="v">' + snakeLen + '</div></div>' +
             '<div class="cell speed"><div class="k">最快速度</div><div class="v">Lv.' + speedLv + '<small>·' + tpsVal + '/s</small></div></div>' +
           '</div>' +
@@ -2554,12 +2969,15 @@
 
       } else {
         this.els.overlay.hidden = true;
+        this.updateBuff();
+        this.updateCombo();
         return;
       }
 
       this.els.panel.innerHTML = html;
       this.els.overlay.hidden = false;
       this.updateBuff();
+      this.updateCombo();
 
       const self = this;
       const btn = document.getElementById('ovBtn');
@@ -2603,6 +3021,51 @@
           self.onSaveName();
         });
       }
+    },
+
+    /** E 轮：渲染三张升级卡（带 id，便于测试与键盘/点击双通道选择） */
+    renderUpgradeCards: function () {
+      const list = Game.pendingUpgrades || [];
+      let out = '<div class="up-cards">';
+      for (let i = 0; i < list.length; i++) {
+        const u = list[i];
+        const lv = Game.upgradeLevels[u.id] || 0;
+        const lvTxt = u.max < 90 ? ('Lv.' + lv + '/' + u.max) : ('已选 ' + lv);
+        out +=
+          '<button class="up-card" type="button" id="upCard' + i + '" data-up="' + u.id + '">' +
+            '<span class="up-ic">' + u.icon + '</span>' +
+            '<span class="up-body">' +
+              '<span class="up-name">' + u.name + '<span class="up-lv">' + lvTxt + '</span></span>' +
+              '<span class="up-desc">' + u.desc + '</span>' +
+            '</span>' +
+            '<span class="up-key">' + (i + 1) + '</span>' +
+          '</button>';
+      }
+      return out + '</div>';
+    },
+
+    /** E 轮：给升级卡挂点击事件（键盘通道见 Input.onKeyDown 的 1/2/3） */
+    bindUpgradeCards: function () {
+      const self = this;
+      for (let i = 0; i < 3; i++) {
+        const el = document.getElementById('upCard' + i);
+        if (!el) continue;
+        el.addEventListener('click', function (e) {
+          if (e && e.stopPropagation) e.stopPropagation();
+          self.pickUpgrade(i);
+        });
+      }
+    },
+
+    /** E 轮：选中第 index 张升级卡 —— 生效、播音效、关面板、继续游戏 */
+    pickUpgrade: function (index) {
+      const list = Game.pendingUpgrades;
+      if (!Game.awaitingUpgrade || !list || index < 0 || index >= list.length) return false;
+      const id = list[index].id;
+      if (!Game.applyUpgrade(id)) return false;
+      Sfx.upgrade();
+      App.afterUpgrade();
+      return true;
     },
 
     /** 开始屏排行榜区块：Top 10 列表 + 清空入口 */
@@ -2746,6 +3209,12 @@
 
       // 首次交互解锁音频
       Sfx.unlock();
+
+      // E 轮：升级卡选择（1 / 2 / 3），放在方向键之前拦截
+      if (Game.awaitingUpgrade && (k === '1' || k === '2' || k === '3')) {
+        UI.pickUpgrade(parseInt(k, 10) - 1);
+        return;
+      }
 
       let dir = null;
       if (k === 'ArrowUp'    || code === 'ArrowUp'    || k === 'w' || k === 'W') dir = DIR.up;
@@ -2930,6 +3399,7 @@
 
     pause: function () {
       if (Game.state !== STATE.PLAYING) return;
+      if (Game.awaitingUpgrade) return;        // E 轮：选卡期间不允许暂停，否则面板会被顶掉
       Game.state = STATE.PAUSED;
       Sfx.pause(true);
       UI.syncOverlay();
@@ -2952,6 +3422,37 @@
       this.alpha = 0;
       Fx.clear();
       Sfx.start();
+      UI.updateHud();
+      UI.syncOverlay();
+    },
+
+    /**
+     * E 轮：受击（扣 1 点生命但没死）—— 震屏 + 红色粒子 + "-1 ♥" 飘字 + 闷响。
+     * 注意：不调用 endGame，游戏继续；蛇身收缩与免伤由 Game.hit 完成。
+     */
+    onHit: function () {
+      const head = Game.snake[0];
+      const px = Renderer.cx(head.x);
+      const py = Renderer.cy(head.y);
+      Fx.shakeScreen();
+      Fx.burst(px, py, Renderer.cell, ['#fca5a5', '#ef4444', '#fecaca', '#fee2e2']);
+      Fx.floatText(px, py - Renderer.cell * 0.6, '-1 ♥');
+      Sfx.hit();
+      UI.updateHud();
+    },
+
+    /** E 轮：过关后弹出三选一升级卡（选完才继续推进逻辑） */
+    openUpgrade: function () {
+      if (!Game.pendingUpgrades || !Game.pendingUpgrades.length) return;
+      Game.awaitingUpgrade = true;
+      this.accumulator = 0;
+      Sfx.offer();
+      UI.syncOverlay();
+    },
+
+    /** E 轮：选完卡后恢复推进 */
+    afterUpgrade: function () {
+      this.accumulator = 0;
       UI.updateHud();
       UI.syncOverlay();
     },
@@ -2998,15 +3499,21 @@
 
         // 真实时间推进 buff / 特殊食物 TTL / 自动生成（暂停态由 B 轮逻辑跳过，画面冻结）
         Game.updateTimers(dt);
-        // Boss 蛇本帧撞到玩家 -> 直接判死（不 return，下方 tick 循环因状态已变而不执行，正常续帧）
+        // Boss 蛇本帧撞到玩家 -> E 轮改为受击（扣 1 点生命），扣光才判死
         if (Game.bossHitPlayer && Game.state === STATE.PLAYING) {
-          this.endGame();
+          Game.bossHitPlayer = false;
+          // E 轮：免伤期间 Boss 撞上来也不扣血 —— 这正是「护盾果」的价值
+          if (Game.invincible <= 0) {
+            if (Game.hit('boss') === 'dead') this.endGame();
+            else this.onHit();
+          }
         }
 
         let steps = 0;
         while (this.accumulator >= interval &&
                steps < Config.MAX_STEPS_PER_FRAME &&
-               Game.state === STATE.PLAYING) {
+               Game.state === STATE.PLAYING &&
+               !Game.awaitingUpgrade) {
           this.accumulator -= interval;
           steps++;
 
@@ -3018,6 +3525,12 @@
             break;
           }
 
+          // E 轮：受击未致死 —— 只播特效，游戏继续
+          if (result === 'hit') {
+            this.onHit();
+            continue;
+          }
+
           if (result === 'stageclear') {
             const px = Renderer.cx(prevFood.x);
             const py = Renderer.cy(prevFood.y);
@@ -3025,6 +3538,7 @@
             Fx.floatText(px, py - Renderer.cell * 0.5, '第 ' + Game.stage + ' 关');
             Sfx.start();
             UI.updateHud();
+            this.openUpgrade();          // E 轮：过关抽卡（有卡则暂停等选）
             continue;
           }
 
@@ -3080,6 +3594,7 @@
         }
         renderAlpha = this.alpha;
         UI.updateBuff();
+        UI.updateCombo();
       } else {
         // 非 PLAYING 态：累加器/alpha 保持不变（暂停时不清，resume 时再清），
         // 这样切到后台再回来时不会因为长时间 dt 累加而触发补算。

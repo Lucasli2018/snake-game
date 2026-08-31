@@ -4515,17 +4515,17 @@
           '<p class="desc">' + reason + '</p>' +
           lbHtml +
           '<button class="btn" id="ovBtn" type="button">再来一局</button>' +
-          '<p class="hint">按 R / 空格 / 点击屏幕 重新开始</p>' +
           (shareCode
-            ? '<div class="share-block">' +
+            ? '<button class="btn ghost" id="ovShareCopy" type="button">复制分享码</button>' +
+              '<div class="share-block">' +
                 '<div class="share-label">成绩分享码（发给好友比一比）</div>' +
                 '<div class="share-code" id="shareCode">' + escapeHtml(shareCode) + '</div>' +
                 '<div class="share-actions">' +
-                  '<button class="btn ghost" id="ovShareCopy" type="button">复制分享码</button>' +
                   '<button class="btn ghost" id="ovCardSave" type="button">保存成绩卡</button>' +
                 '</div>' +
               '</div>'
-            : '') ;
+            : '') +
+          '<p class="hint">按 R / 空格 / 点击屏幕 重新开始</p>';
 
       } else if (s === STATE.LEADERBOARD) {
         html =

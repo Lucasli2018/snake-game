@@ -309,20 +309,20 @@
     letter-spacing: .3px;
     pointer-events: none;
     z-index: 3;
-    backdrop-filter: blur(3px);
+    backdrop-filter: blur(2px);
     color: #f5f3ff;
-    background: linear-gradient(100deg, rgba(167,139,250,.92), rgba(109,40,217,.9));
-    box-shadow: 0 6px 16px -6px rgba(139,92,246,.8);
+    background: linear-gradient(100deg, rgba(167,139,250,.5), rgba(109,40,217,.45));
+    box-shadow: 0 4px 12px -6px rgba(139,92,246,.4);
     animation: buff-in .18s ease;
   }
   .combo-bar[hidden] { display: none; }
   .combo-bar.hot {
-    background: linear-gradient(100deg, rgba(251,146,60,.94), rgba(217,119,6,.9));
-    box-shadow: 0 6px 18px -6px rgba(249,115,22,.85);
+    background: linear-gradient(100deg, rgba(251,146,60,.55), rgba(217,119,6,.5));
+    box-shadow: 0 4px 14px -6px rgba(249,115,22,.45);
   }
   .combo-bar .combo-ic { font-size: 14px; line-height: 1; }
   .combo-bar .combo-mul { font-variant-numeric: tabular-nums; }
-  .combo-bar .combo-cnt { font-size: 11px; font-weight: 700; opacity: .85; }
+  .combo-bar .combo-cnt { font-size: 11px; font-weight: 700; opacity: .8; }
   .combo-bar .combo-tm {
     font-variant-numeric: tabular-nums;
     font-weight: 700;
@@ -4488,6 +4488,8 @@
       this.els.overlay.addEventListener('click', function () {
         // 准备态：只有「开始游戏」按钮能开始，点屏幕任意处（模式/皮肤/排行榜等）不启动，避免误触
         if (Game.state === STATE.READY) return;
+        // 结束态：只响应「再来一局」按钮，点遮罩其它位置不重启（避免误触，见 bug 修复）
+        if (Game.state === STATE.GAMEOVER) return;
         // E 轮：选卡期间点空白处不响应，避免把选卡面板顶掉
         if (Game.awaitingUpgrade) return;
         App.primaryAction();
@@ -4753,7 +4755,7 @@
                 '<div class="share-code" id="shareCode">' + escapeHtml(shareCode) + '</div>' +
               '</div>'
             : '<button class="btn" id="ovBtn" type="button">再来一局</button>') +
-          '<p class="hint">按 R / 空格 / 点击屏幕 重新开始</p>';
+          '<p class="hint">按 R / 空格 重新开始，或点「再来一局」</p>';
 
       } else if (s === STATE.LEADERBOARD) {
         html =

@@ -259,11 +259,15 @@ test('08.12 各状态下点击遮罩的行为正确', () => {
   h.clickOverlay();
   assert.strictEqual(h.Game.state, h.STATE.PLAYING);
 
-  // gameover -> 重开
+  // gameover -> 点遮罩任意处不应重开（只响应「再来一局」按钮，避免误触 bug）
   h.Game.state = h.STATE.GAMEOVER;
   h.UI.syncOverlay();
   h.clickOverlay();
-  assert.strictEqual(h.Game.state, h.STATE.PLAYING);
+  assert.strictEqual(h.Game.state, h.STATE.GAMEOVER, '结束态点遮罩任意处不应重开');
+
+  // 通过 R 键仍可重开
+  h.key('r');
+  assert.strictEqual(h.Game.state, h.STATE.PLAYING, '结束态按 R 仍应重开');
 });
 
 test('08.13 R 键在任意状态下都能重开', () => {

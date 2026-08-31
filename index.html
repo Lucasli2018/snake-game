@@ -825,6 +825,22 @@
   .share-actions .btn { flex: 1 1 0; min-width: 0; padding: 0.55em 1em; }
   .share-actions .btn.ghost { white-space: nowrap; }
 
+  /* GAME OVER 三个主要操作按钮并为一行 */
+  .go-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: clamp(6px, 1.6cqw, 10px);
+    width: 100%;
+  }
+  .go-actions .btn {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0.65em 0.8em;
+    white-space: nowrap;
+    font-size: clamp(12px, 3cqw, 15px);
+  }
+
   /* ====================== I 轮：元进度天赋树 ====================== */
   .stardust-balance {
     font-size: clamp(12px, 3cqw, 14px);
@@ -4726,17 +4742,17 @@
           '<p class="desc">' + reason + '</p>' +
           lbHtml +
           '<p class="stardust-earn">本局获得 ✨<b>' + (Game._lastEarned || 0) + '</b> 星屑（累计 ✨' + Meta.stardust() + '）</p>' +
-          '<button class="btn" id="ovBtn" type="button">再来一局</button>' +
           (shareCode
-            ? '<button class="btn ghost" id="ovShareCopy" type="button">复制分享码</button>' +
+            ? '<div class="go-actions">' +
+                '<button class="btn" id="ovBtn" type="button">再来一局</button>' +
+                '<button class="btn ghost" id="ovShareCopy" type="button">复制分享码</button>' +
+                '<button class="btn ghost" id="ovCardSave" type="button">保存成绩卡</button>' +
+              '</div>' +
               '<div class="share-block">' +
                 '<div class="share-label">成绩分享码（发给好友比一比）</div>' +
                 '<div class="share-code" id="shareCode">' + escapeHtml(shareCode) + '</div>' +
-                '<div class="share-actions">' +
-                  '<button class="btn ghost" id="ovCardSave" type="button">保存成绩卡</button>' +
-                '</div>' +
               '</div>'
-            : '') +
+            : '<button class="btn" id="ovBtn" type="button">再来一局</button>') +
           '<p class="hint">按 R / 空格 / 点击屏幕 重新开始</p>';
 
       } else if (s === STATE.LEADERBOARD) {

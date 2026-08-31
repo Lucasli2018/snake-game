@@ -49,7 +49,8 @@ function patchForExport(src) {
     ' UI: UI, Input: Input, App: App, roundRect: roundRect, getFontFamily: getFontFamily,' +
     ' Leaderboard: Leaderboard, Achievements: Achievements, Skins: Skins, Stats: Stats,' +
     ' Share: Share, FriendsBoard: FriendsBoard,' +
-    ' MODES: MODES, ACHIEVEMENTS: ACHIEVEMENTS, SNAKE_SKINS: SNAKE_SKINS };' +
+    ' MODES: MODES, ACHIEVEMENTS: ACHIEVEMENTS, SNAKE_SKINS: SNAKE_SKINS,' +
+    ' Meta: Meta, TALENTS: TALENTS };' +
     '\n})();'
   );
 }
@@ -405,6 +406,8 @@ function createHarness(opts) {
     // H 轮新增
     Share: X.Share, FriendsBoard: X.FriendsBoard,
     MODES: X.MODES, ACHIEVEMENTS: X.ACHIEVEMENTS, SNAKE_SKINS: X.SNAKE_SKINS,
+    // I 轮新增
+    Meta: X.Meta, TALENTS: X.TALENTS,
 
     // 环境
     window, document, els: registry, consoleLog,

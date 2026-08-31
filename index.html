@@ -825,6 +825,50 @@
   .share-actions .btn { flex: 1 1 0; min-width: 0; padding: 0.55em 1em; }
   .share-actions .btn.ghost { white-space: nowrap; }
 
+  /* ====================== I 轮：元进度天赋树 ====================== */
+  .stardust-balance {
+    font-size: clamp(12px, 3cqw, 14px);
+    color: #fde68a;
+    text-align: center;
+    margin: 0;
+  }
+  .stardust-balance b { color: #fde68a; }
+  .stardust-balance.big { font-size: clamp(13px, 3.4cqw, 16px); }
+  .stardust-earn {
+    font-size: clamp(12px, 3cqw, 14px);
+    color: #cbd5e1;
+    text-align: center;
+    margin: 0;
+  }
+  .stardust-earn b { color: #fde68a; }
+  .talent-list { width: 100%; }
+  .talent-list li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: clamp(6px, 1.6cqw, 10px);
+    border-radius: 12px;
+    background: rgba(148,163,184,0.10);
+  }
+  .talent-list li.maxed { background: rgba(253,230,138,0.12); }
+  .talent-ic {
+    flex: 0 0 auto;
+    width: clamp(30px, 8cqw, 42px);
+    height: clamp(30px, 8cqw, 42px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(18px, 5cqw, 24px);
+    border-radius: 50%;
+    background: rgba(74,222,128,0.14);
+  }
+  .talent-main { flex: 1 1 0; min-width: 0; }
+  .talent-name { font-size: clamp(13px, 3.2cqw, 15px); font-weight: 800; color: #f8fafc; }
+  .talent-pips { color: #fde68a; letter-spacing: 1px; margin-left: 4px; font-size: 0.85em; }
+  .talent-desc { font-size: clamp(11px, 2.6cqw, 13px); color: #94a3b8; line-height: 1.3; }
+  .talent-up { flex: 0 0 auto; white-space: nowrap; padding: 0.5em 0.9em; }
+  .talent-up.is-disabled { opacity: 0.45; cursor: not-allowed; }
+
   /* GAME OVER 面板元素多，进一步压缩间距避免底部被裁（:has 现代浏览器支持） */
   .panel:has(.go-stats) { gap: clamp(6px, 1.6cqw, 10px); }
   .panel:has(.go-stats) h2 { font-size: clamp(20px, 5.5cqw, 32px); }
@@ -1431,7 +1475,10 @@
     STORAGE_FRIENDS: 'snake-friends.v1',
     SHARE_PREFIX: 'SNK1-',
     SHARE_VERSION: 1,
-    FRIENDS_MAX: 50
+    FRIENDS_MAX: 50,
+
+    /* ---- I 轮：元进度天赋树（跨局永久成长） ---- */
+    STORAGE_META: 'snake-meta.v1'
   };
 
   /**
@@ -1470,6 +1517,132 @@
       apply: function (g) { if (g.lives < g.maxLives) g.lives++; }
     }
   ];
+
+  /**
+   * I 轮：元进度天赋树。
+   * - 每局结算获得 ✨星屑（跨局货币），用于在开始屏解锁永久天赋。
+   * - TALENTS 是天赋定义（id / 图标 / 名称 / 描述 / 最大等级 / 各级花费）。
+   * - Meta 负责读写 localStorage（键 Config.STORAGE_META），并暴露各天赋的「效果 getter」；
+   *   等级为 0 时所有 getter 返回恒等值，保证未解锁时与旧行为完全一致（现有测试不受影响）。
+   */
+  const TALENTS = [
+    { id: 'startLife',   icon: '♥', name: '强身',       desc: '初始生命 +1（最多 +2）',               max: 2, cost: [20, 45] },
+    { id: 'scoreBonus',  icon: '★', name: '贪婪之魂',   desc: '全局得分 +5%（最多 +15%）',             max: 3, cost: [15, 30, 55] },
+    { id: 'comboWindow', icon: '⚡', name: '连击感知',   desc: '连击窗口 +1 秒（最多 +3 秒）',         max: 3, cost: [12, 25, 45] },
+    { id: 'specialFreq', icon: '🍀', name: '幸运星',     desc: '特殊食物更频繁（间隔 -20%，最多 -60%）', max: 3, cost: [15, 30, 55] },
+    { id: 'calmBase',    icon: '❄', name: '稳健',       desc: '基础速度 -0.8 格/秒（最多 -1.6）',     max: 2, cost: [20, 45] },
+    { id: 'startLen',    icon: '🐍', name: '长蛇',       desc: '起步蛇身 +1 节（最多 +2 节）',         max: 2, cost: [18, 40] }
+  ];
+
+  const Meta = {
+    KEY: Config.STORAGE_META,
+
+    /** 默认数据：星屑 0、所有天赋 0 级 */
+    _default: function () {
+      const t = {};
+      for (let i = 0; i < TALENTS.length; i++) t[TALENTS[i].id] = 0;
+      return { stardust: 0, talents: t };
+    },
+
+    /** 从 localStorage 读取并归一（脏数据/隐私模式一律兜底为默认） */
+    load: function () {
+      let data = this._default();
+      try {
+        const raw = Storage.get(this.KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object') {
+            if (typeof parsed.stardust === 'number' && isFinite(parsed.stardust)) {
+              data.stardust = Math.max(0, Math.floor(parsed.stardust));
+            }
+            if (parsed.talents && typeof parsed.talents === 'object') {
+              for (let i = 0; i < TALENTS.length; i++) {
+                const id = TALENTS[i].id;
+                const v = parsed.talents[id];
+                if (typeof v === 'number' && isFinite(v)) {
+                  data.talents[id] = Math.max(0, Math.min(TALENTS[i].max, Math.floor(v)));
+                }
+              }
+            }
+          }
+        }
+      } catch (e) { data = this._default(); }
+      this._cache = data;
+      return data;
+    },
+
+    /** 始终从 Storage 重新读取（避免跨测试/跨局脏缓存） */
+    data: function () { return this.load(); },
+
+    defs: function () { return TALENTS; },
+
+    _def: function (id) {
+      for (let i = 0; i < TALENTS.length; i++) if (TALENTS[i].id === id) return TALENTS[i];
+      return null;
+    },
+
+    stardust: function () { return this.data().stardust; },
+    rank: function (id) { return this.data().talents[id] || 0; },
+
+    maxed: function (id) {
+      const def = this._def(id);
+      return def ? this.rank(id) >= def.max : true;
+    },
+
+    /** 下一级花费；已满级返回 null */
+    cost: function (id) {
+      const def = this._def(id);
+      if (!def) return null;
+      const r = this.rank(id);
+      if (r >= def.max) return null;
+      return def.cost[r];
+    },
+
+    canUpgrade: function (id) {
+      const c = this.cost(id);
+      return c !== null && this.stardust() >= c;
+    },
+
+    upgrade: function (id) {
+      const c = this.cost(id);
+      if (c === null) return false;
+      if (this.stardust() < c) return false;
+      const d = this.data();
+      d.stardust -= c;
+      d.talents[id] = (d.talents[id] || 0) + 1;
+      this.save(d);
+      return true;
+    },
+
+    addStardust: function (n) {
+      const d = this.data();
+      d.stardust = Math.max(0, d.stardust + Math.floor(n || 0));
+      this.save(d);
+      return d.stardust;
+    },
+
+    save: function (d) {
+      try { Storage.set(this.KEY, JSON.stringify(d)); } catch (e) { /* 隐私模式静默降级 */ }
+    },
+
+    /** 本局应得星屑：得分/20 + 最高连击×2 + 击破Boss×5 + 通关+30 + 新纪录+15 */
+    earnedFor: function (g) {
+      let n = Math.floor((g.score || 0) / 20);
+      n += (g.comboBest || 0) * 2;
+      n += (g.runBossKills || 0) * 5;
+      if (g.win) n += 30;
+      if (g.isRecord) n += 15;
+      return Math.max(0, Math.floor(n));
+    },
+
+    /* ---- 效果 getter：等级 0 时恒等 ---- */
+    startLivesBonus:   function () { return this.rank('startLife'); },             // +1 / 级
+    scoreBonus:        function () { return this.rank('scoreBonus') * 0.05; },    // +5% / 级
+    comboWindowBonus:  function () { return this.rank('comboWindow'); },          // +1s / 级
+    specialIntervalMul:function () { return Math.max(0.4, 1 - this.rank('specialFreq') * 0.2); }, // -20% / 级，下限 0.4
+    calmBaseLevel:     function () { return this.rank('calmBase'); },             // +1 calmLevel / 级
+    startLenBonus:     function () { return this.rank('startLen'); }              // +1 节 / 级
+  };
 
   /**
    * G 轮：三种玩法模式。
@@ -1523,7 +1696,7 @@
     right: { x: 1,  y: 0  }
   };
 
-  const STATE = { READY: 'ready', PLAYING: 'playing', PAUSED: 'paused', GAMEOVER: 'gameover', LEADERBOARD: 'leaderboard', SOCIAL: 'social', ACHIEVEMENTS: 'achievements' };
+  const STATE = { READY: 'ready', PLAYING: 'playing', PAUSED: 'paused', GAMEOVER: 'gameover', LEADERBOARD: 'leaderboard', SOCIAL: 'social', ACHIEVEMENTS: 'achievements', TALENTS: 'talents' };
 
   /* ============================================================
    * 2. 存储（隐私模式下 localStorage 会抛错，全部 try-catch 兜底）
@@ -2169,8 +2342,10 @@
     reset: function () {
       const cx = Math.floor(Config.COLS / 2);
       const cy = Math.floor(Config.ROWS / 2);
+      // I 轮：起步蛇身受「长蛇」天赋影响（等级 0 时为默认长度）
+      const startLen = Config.START_LEN + Meta.startLenBonus();
       this.snake = [];
-      for (let i = 0; i < Config.START_LEN; i++) {
+      for (let i = 0; i < startLen; i++) {
         this.snake.push({ x: cx - i, y: cy });
       }
       this.prevSnake = this.snake.map(function (s) { return { x: s.x, y: s.y }; });
@@ -2200,21 +2375,23 @@
       this.stageBannerText = '';
       this.stageBannerTime = 0;
 
-      /* ---- E 轮：生命 / 连击 / 升级 ---- */
-      this.lives = Config.START_LIVES;
-      this.maxLives = Config.START_LIVES;
+      /* ---- E 轮：生命 / 连击 / 升级（叠加 I 轮天赋的永久加成）---- */
+      this.lives = Math.min(Config.MAX_LIVES, Config.START_LIVES + Meta.startLivesBonus());
+      this.maxLives = this.lives;
       this.invincible = 0;
       this.combo = 0;
       this.comboTimer = 0;
-      this.comboWindow = Config.COMBO_WINDOW;
+      this.comboWindow = Config.COMBO_WINDOW + Meta.comboWindowBonus();
       this.comboBest = 0;
-      this.scoreMul = 1;
+      this.scoreMul = 1 + Meta.scoreBonus();
       this.shieldLevel = 0;
-      this.calmLevel = 0;
+      this.calmLevel = Meta.calmBaseLevel();
       this.upgradeLevels = {};
       this.pendingUpgrades = null;
       this.awaitingUpgrade = false;
       this._lastGain = 0;
+      // I 轮：特殊食物刷新间隔受「幸运星」天赋影响
+      this.specialInterval = Math.round(Config.SPECIAL_SPAWN_INTERVAL * Meta.specialIntervalMul());
 
       /* ---- G 轮：模式相关（stageMode 由 App.start/restart 按 mode 同步）---- */
       this.timeLeft = (this.mode === 'timeattack') ? Config.TIME_ATTACK_SEC : 0;
@@ -2864,7 +3041,7 @@
       }
       if (this.state === STATE.PLAYING) {
         this.specialSpawnTimer += dt * 1000;
-        if (this.specialSpawnTimer >= Config.SPECIAL_SPAWN_INTERVAL && !this.special) {
+        if (this.specialSpawnTimer >= this.specialInterval && !this.special) {
           this.specialSpawnTimer = 0;
           this.spawnSpecial();
         }
@@ -3130,6 +3307,10 @@
       } else {
         this.isRecord = false;
       }
+
+      // I 轮：本局结算星屑（跨局货币），累加进 Meta 持久化
+      this._lastEarned = Meta.earnedFor(this);
+      Meta.addStardust(this._lastEarned);
     },
 
     /** H 轮：把本局关键成绩打包成分享码用的 runData（m 为模式索引：stage=0/endless=1/timeattack=2） */
@@ -4442,13 +4623,15 @@
           this.renderModes() +
           this.renderSkins() +
           this.renderProfile() +
+          '<p class="stardust-balance">✨ 星屑：<b>' + Meta.stardust() + '</b></p>' +
           '<button class="btn" id="ovBtn" type="button">开始游戏</button>' +
           '<div class="btn-row">' +
             '<button class="btn ghost" id="ovLb" type="button">🏆 排行榜</button>' +
             '<button class="btn ghost" id="ovAch" type="button">★ 成就</button>' +
             '<button class="btn ghost" id="ovFriends" type="button">👥 好友榜</button>' +
+            '<button class="btn ghost" id="ovTalent" type="button">🌟 天赋</button>' +
           '</div>' +
-          '<p class="hint">按 空格 / Enter 开始 · 点「排行榜 / 成就 / 好友榜」查看</p>'
+          '<p class="hint">按 空格 / Enter 开始 · 点「排行榜 / 成就 / 好友榜 / 天赋」查看</p>'
 
       } else if (s === STATE.PAUSED) {
         // 暂停屏不加排行榜，保持轻量
@@ -4514,6 +4697,7 @@
           '</div>' +
           '<p class="desc">' + reason + '</p>' +
           lbHtml +
+          '<p class="stardust-earn">本局获得 ✨<b>' + (Game._lastEarned || 0) + '</b> 星屑（累计 ✨' + Meta.stardust() + '）</p>' +
           '<button class="btn" id="ovBtn" type="button">再来一局</button>' +
           (shareCode
             ? '<button class="btn ghost" id="ovShareCopy" type="button">复制分享码</button>' +
@@ -4554,6 +4738,16 @@
           '<div class="tag">ACHIEVEMENTS</div>' +
           '<h2>★ 成就</h2>' +
           this.renderAchievementsBlock() +
+          '<button class="btn ghost" id="ovBack" type="button">返回</button>' +
+          '<p class="hint">按 Esc / 点「返回」回到开始</p>';
+
+      } else if (s === STATE.TALENTS) {
+        html =
+          '<div class="tag">TALENTS</div>' +
+          '<h2>🌟 天赋</h2>' +
+          '<p class="desc">用 ✨星屑 解锁永久强化，跨局生效。</p>' +
+          '<p class="stardust-balance big">当前星屑：✨ <b>' + Meta.stardust() + '</b></p>' +
+          this.renderTalentsBlock() +
           '<button class="btn ghost" id="ovBack" type="button">返回</button>' +
           '<p class="hint">按 Esc / 点「返回」回到开始</p>';
 
@@ -4655,6 +4849,29 @@
           if (e && e.stopPropagation) e.stopPropagation();
           UI.showGuide();
         });
+      }
+      // 开始屏：天赋按钮 -> 进入独立天赋面板
+      const talentBtn = document.getElementById('ovTalent');
+      if (talentBtn) {
+        talentBtn.addEventListener('click', function (e) {
+          if (e && e.stopPropagation) e.stopPropagation();
+          Game.state = STATE.TALENTS;
+          UI.syncOverlay();
+        });
+      }
+      // 天赋面板：逐张升级按钮 -> 扣星屑并刷新面板
+      if (Game.state === STATE.TALENTS) {
+        const defs = Meta.defs();
+        for (let i = 0; i < defs.length; i++) {
+          const upBtn = document.getElementById('talentUp' + i);
+          if (!upBtn) continue;
+          (function (id) {
+            upBtn.addEventListener('click', function (e) {
+              if (e && e.stopPropagation) e.stopPropagation();
+              if (Meta.upgrade(id)) UI.syncOverlay();
+            });
+          })(defs[i].id);
+        }
       }
       // 好友榜面板：导入 / 删除 / 返回
       const importBtn = document.getElementById('ovImport');
@@ -4896,6 +5113,40 @@
         '</div>';
     },
 
+    /** I 轮：天赋面板列表（开始屏点「🌟 天赋」进入，消耗 ✨星屑解锁永久强化） */
+    renderTalentsBlock: function () {
+      const defs = Meta.defs();
+      let rows = '';
+      for (let i = 0; i < defs.length; i++) {
+        const d = defs[i];
+        const r = Meta.rank(d.id);
+        const maxed = Meta.maxed(d.id);
+        const cost = Meta.cost(d.id);
+        const can = Meta.canUpgrade(d.id);
+        const pips = this._talentPips(r, d.max);
+        const btnLabel = maxed ? '已满级' : ('升级 ✨' + cost);
+        const btnCls = 'btn ghost talent-up' + (can ? '' : ' is-disabled');
+        const btnAttr = can ? '' : ' disabled';
+        rows +=
+          '<li class="talent-item' + (maxed ? ' maxed' : '') + '">' +
+            '<div class="talent-ic">' + d.icon + '</div>' +
+            '<div class="talent-main">' +
+              '<div class="talent-name">' + escapeHtml(d.name) +
+                ' <span class="talent-pips">' + pips + '</span></div>' +
+              '<div class="talent-desc">' + escapeHtml(d.desc) + '</div>' +
+            '</div>' +
+            '<button class="' + btnCls + '" id="talentUp' + i + '" type="button"' + btnAttr + '>' + btnLabel + '</button>' +
+          '</li>';
+      }
+      return '<ul class="lb-list talent-list">' + rows + '</ul>';
+    },
+
+    _talentPips: function (rank, max) {
+      let s = '';
+      for (let i = 0; i < max; i++) s += (i < rank) ? '●' : '○';
+      return s;
+    },
+
     /** H 轮：好友榜列表（导入的他人成绩，与排行榜渲染复用 .leaderboard 样式） */
     renderFriendsBlock: function () {
       const list = FriendsBoard.list();
@@ -5125,6 +5376,7 @@
         else if (Game.state === STATE.LEADERBOARD) App.showStart();
         else if (Game.state === STATE.SOCIAL) App.showStart();
         else if (Game.state === STATE.ACHIEVEMENTS) App.showStart();
+        else if (Game.state === STATE.TALENTS) App.showStart();
         return;
       }
 
@@ -5257,6 +5509,7 @@
       else if (Game.state === STATE.LEADERBOARD) return;  // 独立面板态：不误开始
       else if (Game.state === STATE.SOCIAL) return;        // 独立面板态：不误开始
       else if (Game.state === STATE.ACHIEVEMENTS) return;  // 独立面板态：不误开始
+      else if (Game.state === STATE.TALENTS) return;       // 独立面板态：不误开始
     },
 
     /** 进入独立排行榜面板（暂停游戏逻辑，与 READY 同级） */

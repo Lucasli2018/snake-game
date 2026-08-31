@@ -1104,45 +1104,49 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* 排行榜：名字、分数、日期/时长/模式分两层，确保 10 字符名字完整展示 */
+  /* 排行榜/每日榜：单行三列（名次 / 信息[名字+日期·时长] / 分数），杜绝空名压成不可见 */
   .lb-list.leaderboard-list li {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    align-items: stretch;
-  }
-  .lb-list.leaderboard-list .lb-main {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1.7em minmax(0, 1fr) auto;
+    grid-template-areas: "rank info score";
     align-items: center;
-    gap: 6px;
-    min-width: 0;
+    column-gap: 6px;
+    row-gap: 2px;
   }
   .lb-list.leaderboard-list .lb-ranknum {
-    flex: 0 0 1.7em;
+    grid-area: rank;
     text-align: center;
+    align-self: center;
+  }
+  .lb-list.leaderboard-list .lb-info {
+    grid-area: info;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
   }
   .lb-list.leaderboard-list .lb-name {
-    flex: 1 1 0%;
-    min-width: 0;
-    width: 0;
+    color: #f8fafc;
+    font-weight: 700;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    min-width: 0;
   }
   .lb-list.leaderboard-list .lb-score {
-    flex: 0 0 auto;
+    grid-area: score;
     text-align: right;
+    align-self: center;
+    white-space: nowrap;
   }
-  .lb-list.leaderboard-list .lb-meta-row {
-    display: flex;
-    justify-content: flex-start;
-    min-width: 0;
-  }
-  .lb-list.leaderboard-list .lb-meta-row .lb-meta {
-    min-width: 0;
+  .lb-list.leaderboard-list .lb-meta {
+    color: #94a3b8;
+    font-size: 0.82em;
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
+    min-width: 0;
+    font-variant-numeric: tabular-nums;
   }
   .lb-empty {
     font-size: clamp(11px, 2.6cqw, 13px);
@@ -5422,17 +5426,16 @@
           const key = e.name + '|' + e.score;
           const selfCls = (selfKey && key === selfKey) ? ' is-self' : '';
           const rankIcon = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
+          const dispName = e.name ? escapeHtml(e.name) : '匿名玩家';
           rows +=
             '<li class="' + topCls + selfCls + '">' +
-              '<div class="lb-main">' +
-                '<span class="lb-ranknum">' + rankIcon + '</span>' +
-                '<span class="lb-name">' + escapeHtml(e.name) + '</span>' +
-                '<span class="lb-score">' + e.score + '</span>' +
-              '</div>' +
-              '<div class="lb-meta-row">' +
+              '<span class="lb-ranknum">' + rankIcon + '</span>' +
+              '<div class="lb-info">' +
+                '<span class="lb-name">' + dispName + '</span>' +
                 '<span class="lb-meta">' + formatLbDate(e.date) + ' · ' + formatLbDuration(e.duration) +
                   ' · ' + modeName(e.mode) + '</span>' +
               '</div>' +
+              '<span class="lb-score">' + e.score + '</span>' +
             '</li>';
         }
       }
@@ -5470,10 +5473,14 @@
         for (let i = 0; i < list.length; i++) {
           const it = list[i];
           const topCls = i < 3 ? ' is-top' + (i + 1) : '';
+          const dispName = it.name ? escapeHtml(it.name) : '匿名玩家';
           rows +=
             '<li class="' + topCls + '">' +
               '<span class="lb-ranknum">' + (i + 1) + '</span>' +
-              '<span class="lb-name">' + escapeHtml(it.name) + '</span>' +
+              '<div class="lb-info">' +
+                '<span class="lb-name">' + dispName + '</span>' +
+                '<span class="lb-meta">' + formatLbDuration(it.duration) + ' · ' + formatLbDate(it.date) + '</span>' +
+              '</div>' +
               '<span class="lb-score">' + it.score + '</span>' +
             '</li>';
         }

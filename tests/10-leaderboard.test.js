@@ -301,3 +301,23 @@ test('10.21 一局结束后重开，开始屏仍显示该记录', () => {
   h.UI.syncOverlay();
   assert.ok(h.els.get('panel').innerHTML.includes('lb-ranknum'), '重开后开始屏应仍显示记录');
 });
+
+/* ================================================================== *
+ * 8. 渲染：名字 + 日期 + 游戏时长 必须可见（防遮挡/空名回归）
+ * ================================================================== */
+test('10.22 排行渲染须显示名字、日期与游戏时长；空名字显示占位', () => {
+  const h = H.createHarness();
+  h.Leaderboard.entries = [
+    { name: '',            score: 190, date: '2026-08-20T10:00:00.000Z', duration: 95, mode: 'stage' },
+    { name: 'Li',          score: 166, date: '2026-08-21T11:00:00.000Z', duration: 0,  mode: 'endless' }
+  ];
+  const html = h.UI.renderLeaderboardBlock();
+  assert.ok(html.includes('lb-info'), '每行应含信息列 lb-info');
+  assert.ok(html.includes('匿名玩家'), '空名字应渲染占位「匿名玩家」');
+  assert.ok(html.includes('Li'), '非空名字应直接显示');
+  assert.ok(html.includes('2026-08-20'), '应显示日期');
+  assert.ok(html.includes('1m35s'), '应显示游戏时长（mmss 格式）');
+  assert.ok(html.includes('闯关') && html.includes('无尽'), '应显示模式名');
+  // 旧的两层结构不应残留，避免再次压成"只有 rank+score"
+  assert.ok(!html.includes('lb-meta-row'), '不应再使用已废弃的 lb-meta-row 结构');
+});

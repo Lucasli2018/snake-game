@@ -628,8 +628,11 @@
     align-items: center;
     gap: clamp(8px, 2cqw, 14px);
     animation: pop .22s ease;
+    touch-action: pan-y;         /* 允许面板区域垂直滑动 */
   }
   .panel::-webkit-scrollbar { display: none; }  /* Chrome/Safari/Edge：同上 */
+  /* 天赋页有独立的 talent-scroll，让 panel 不再重复滚动，避免双滚动条 */
+  .panel:has(.talent-scroll) { overflow: visible; }
 
   .tag {
     display: inline-block;
@@ -857,6 +860,29 @@
     margin: 0;
   }
   .stardust-earn b { color: #fde68a; }
+  /* 天赋列表独立滚动容器：解决移动端/小高度下天赋面板无法滑动的问题 */
+  .talent-scroll {
+    width: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    padding-right: 4px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148,163,184,.4) transparent;
+  }
+  .talent-scroll::-webkit-scrollbar { width: 6px; }
+  .talent-scroll::-webkit-scrollbar-track { background: transparent; }
+  .talent-scroll::-webkit-scrollbar-thumb {
+    background: rgba(148,163,184,.35);
+    border-radius: 99px;
+  }
+  .talent-scroll .talent-list {
+    flex: 0 0 auto;
+    min-height: 0;
+    overflow: visible;
+  }
   .talent-list {
     width: 100%;
     display: flex;
@@ -1032,6 +1058,8 @@
     flex: 1 1 auto;              /* 列表占满 leaderboard 剩余高度，不再固定 40vh */
     min-height: 0;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;       /* 允许列表区域垂直滑动，不被画布 touch-action:none 影响 */
     scrollbar-width: thin;
     scrollbar-color: rgba(148,163,184,.4) transparent;
   }
@@ -1110,8 +1138,9 @@
     grid-template-columns: 1.7em minmax(0, 1fr) auto;
     grid-template-areas: "rank info score";
     align-items: center;
-    column-gap: 6px;
+    column-gap: 8px;
     row-gap: 2px;
+    padding: clamp(7px, 1.8cqw, 11px) clamp(9px, 2.2cqw, 14px);
   }
   .lb-list.leaderboard-list .lb-ranknum {
     grid-area: rank;
@@ -1122,8 +1151,10 @@
     grid-area: info;
     display: flex;
     flex-direction: column;
-    gap: 1px;
+    gap: 2px;
     min-width: 0;
+    overflow: hidden;
+    justify-content: center;
   }
   .lb-list.leaderboard-list .lb-name {
     color: #f8fafc;
@@ -1132,12 +1163,15 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     min-width: 0;
+    line-height: 1.25;
   }
   .lb-list.leaderboard-list .lb-score {
     grid-area: score;
     text-align: right;
     align-self: center;
     white-space: nowrap;
+    min-width: 0;
+    padding-left: 4px;
   }
   .lb-list.leaderboard-list .lb-meta {
     color: #94a3b8;
@@ -1147,6 +1181,7 @@
     text-overflow: ellipsis;
     min-width: 0;
     font-variant-numeric: tabular-nums;
+    line-height: 1.25;
   }
   .lb-empty {
     font-size: clamp(11px, 2.6cqw, 13px);
@@ -4290,9 +4325,9 @@
       ctx.lineWidth = cell * 0.72;
       ctx.stroke(path);
 
-      // 命中闪白 / 冲刺预警：整条叠一层亮色
+      // 命中闪白 / 冲刺预警：整条叠一层亮色（频率降低，避免看起来像频闪 bug）
       const flash = b.hitFlash > 0 ? (b.hitFlash / Config.BOSS_HIT_FLASH) : 0;
-      const warn = b.dashWarn > 0 ? (0.5 + 0.5 * Math.sin(Fx.time * 26)) : 0;
+      const warn = b.dashWarn > 0 ? (0.5 + 0.5 * Math.sin(Fx.time * 10)) : 0;
       if (flash > 0 || warn > 0) {
         ctx.save();
         ctx.globalAlpha = Math.min(1, Math.max(flash * 0.9, warn * 0.5));
@@ -4340,7 +4375,7 @@
       if (b.dashWarn > 0) {
         const d = b.dashDir;
         ctx.save();
-        ctx.globalAlpha = 0.45 + 0.4 * Math.sin(Fx.time * 26);
+        ctx.globalAlpha = 0.5 + 0.35 * Math.sin(Fx.time * 10);
         ctx.fillStyle = '#fde68a';
         const s = cell * 0.32, off = cell * 0.7;
         ctx.beginPath();
@@ -4352,10 +4387,10 @@
         ctx.restore();
       }
 
-      // 尾节弱点：脉动虚线圆环，明确告诉玩家"撞这里"
+      // 尾节弱点：缓动虚线圆环，明确告诉玩家"撞这里"（减慢并弱化脉动，避免像频闪）
       const tail = pts[n - 1];
       ctx.save();
-      ctx.globalAlpha = 0.5 + 0.32 * Math.sin(Fx.time * 5);
+      ctx.globalAlpha = 0.6 + 0.12 * Math.sin(Fx.time * 2.5);
       ctx.strokeStyle = '#fef9c3';
       ctx.lineWidth = Math.max(1.5, cell * 0.075);
       ctx.setLineDash([cell * 0.18, cell * 0.16]);
@@ -5517,7 +5552,7 @@
             '<button class="' + btnCls + '" id="talentUp' + i + '" type="button"' + btnAttr + '>' + btnLabel + '</button>' +
           '</li>';
       }
-      return '<ul class="lb-list talent-list">' + rows + '</ul>';
+      return '<div class="talent-scroll"><ul class="lb-list talent-list">' + rows + '</ul></div>';
     },
 
     _talentPips: function (rank, max) {

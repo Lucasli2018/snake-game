@@ -913,6 +913,32 @@
   .btn.talent-up .talent-cost { font-size: 13px; font-weight: 800; color: #fde68a; }
   .btn.talent-up.is-disabled { opacity: 0.45; cursor: not-allowed; }
 
+  /* ====================== J 轮：每日挑战 + 每日榜 ====================== */
+  .daily-mods {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+  }
+  .daily-mod {
+    font-size: clamp(11px, 2.6cqw, 13px);
+    color: #cbd5e1;
+    background: rgba(56,189,248,0.12);
+    border: 1px solid rgba(56,189,248,0.35);
+    border-radius: 99px;
+    padding: 4px 10px;
+    line-height: 1.3;
+    white-space: nowrap;
+  }
+  .daily-earn {
+    font-size: clamp(12px, 3cqw, 14px);
+    color: #7dd3fc;
+    text-align: center;
+    margin: 0;
+  }
+  .daily-earn b { color: #7dd3fc; }
+
   /* GAME OVER 面板元素多，进一步压缩间距避免底部被裁（:has 现代浏览器支持） */
   .panel:has(.go-stats) { gap: clamp(6px, 1.6cqw, 10px); }
   .panel:has(.go-stats) h2 { font-size: clamp(20px, 5.5cqw, 32px); }
@@ -1522,7 +1548,15 @@
     FRIENDS_MAX: 50,
 
     /* ---- I 轮：元进度天赋树（跨局永久成长） ---- */
-    STORAGE_META: 'snake-meta.v1'
+    STORAGE_META: 'snake-meta.v1',
+
+    /* ---- J 轮：每日挑战 + 每日榜（公平同图 · 连续打卡） ---- */
+    STORAGE_DAILY: 'snake-daily.v1',            // { 'YYYY-MM-DD': [ {name,score,duration,date,mode} ] }
+    STORAGE_DAILY_STREAK: 'snake-daily-streak.v1', // { lastDate, count }
+    DAILY_MAX: 10,                             // 每日榜最多保留条数
+    DAILY_MOD_COUNT: 2,                       // 每天生效的 modifier 数量
+    DAILY_STREAK_BONUS_STEP: 0.1,             // 每连续打卡一天，星屑 +10%
+    DAILY_STREAK_BONUS_CAP: 0.5               // 连续打卡星屑加成上限（+50%）
   };
 
   /**
@@ -1549,6 +1583,7 @@
     },
     {
       id: 'shield', icon: '◈', name: '护盾果', desc: '特殊食物加入护盾果，吃到获 6 秒免伤', max: 2,
+      available: function (g) { return g.shieldLevel < 2 && !g.dailyNoShield; },
       apply: function (g) { g.shieldLevel++; }
     },
     {
@@ -1688,6 +1723,186 @@
     startLenBonus:     function () { return this.rank('startLen'); }              // +1 节 / 级
   };
 
+  /* ============================================================
+   * J 轮：每日挑战（公平同图）+ 每日榜（连续打卡）
+   * - 每天一个由日期哈希出的种子：同一天所有人棋盘生成（障碍/食物/特殊食物类型）一致，
+   *   叠加 2 个由种子决定的「每日修饰」，形成公平的当日挑战。
+   * - 成绩写入按日期分桶的「每日榜」（与总榜隔离）；连续每天来玩给星屑加成。
+   * ========================================================== */
+  const DAILY_MODS = {
+    comboBoost: { id: 'comboBoost', icon: '⚡', name: '连击红利', desc: '连击窗口 +50%',
+                  apply: function (g) { g.comboWindow = Math.round(g.comboWindow * 1.5); } },
+    greed:      { id: 'greed',      icon: '★', name: '贪婪日',   desc: '得分 ×1.5',
+                  apply: function (g) { g.scoreMul *= 1.5; } },
+    thorns:     { id: 'thorns',     icon: '▦', name: '荆棘日',   desc: '每关障碍 +3',
+                  apply: function (g) { g.dailyObsBonus += 3; } },
+    longSnake:  { id: 'longSnake',  icon: '🐍', name: '长蛇日',   desc: '起步蛇身 +2 节',
+                  apply: function (g) {
+                    for (let i = 0; i < 2; i++) {
+                      const t = g.snake[g.snake.length - 1];
+                      g.snake.push({ x: t.x, y: t.y });
+                    }
+                    g.prevSnake = g.snake.map(function (s) { return { x: s.x, y: s.y }; });
+                  } },
+    swift:      { id: 'swift',      icon: '💨', name: '疾风日',   desc: '基础速度 +0.8',
+                  apply: function (g) { g.calmLevel = Math.max(-3, g.calmLevel - 1); } },
+    calm:       { id: 'calm',       icon: '❄', name: '静心日',   desc: '基础速度 -0.8',
+                  apply: function (g) { g.calmLevel += 1; } },
+    toxic:      { id: 'toxic',      icon: '☣', name: '毒雾日',   desc: 'Boss 关毒区 ×2',
+                  apply: function (g) { g.dailyHazardMul = 2; } },
+    noShield:   { id: 'noShield',   icon: '🚫', name: '无盾日',   desc: '禁用护盾果',
+                  apply: function (g) { g.dailyNoShield = true; g.shieldLevel = 0; } }
+  };
+
+  const Daily = {
+    _pad2: function (n) { return (n < 10 ? '0' : '') + n; },
+
+    /** 本地日期 YYYY-MM-DD（与玩家时区一致，跨天才算新的一天） */
+    todayKey: function () {
+      const d = new Date();
+      return d.getFullYear() + '-' + Daily._pad2(d.getMonth() + 1) + '-' + Daily._pad2(d.getDate());
+    },
+
+    /** 昨天的 YYYY-MM-DD（用于判断连续打卡） */
+    yesterdayKey: function () {
+      const d = new Date();
+      d.setDate(d.getDate() - 1);
+      return d.getFullYear() + '-' + Daily._pad2(d.getMonth() + 1) + '-' + Daily._pad2(d.getDate());
+    },
+
+    /** FNV-1a 字符串哈希 -> uint32，作为每日种子 */
+    hashStr: function (str) {
+      let h = 0x811c9dc5;
+      for (let i = 0; i < str.length; i++) {
+        h ^= str.charCodeAt(i);
+        h = Math.imul(h, 0x01000193);
+      }
+      return h >>> 0;
+    },
+
+    /** mulberry32：小巧可复现的伪随机发生器（同一种子产生同一序列） */
+    makeRng: function (seed) {
+      let a = seed >>> 0;
+      return function () {
+        a |= 0; a = (a + 0x6D2B79F5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    },
+
+    /** 指定日期的种子（测试可传固定 key） */
+    seedFor: function (key) { return Daily.hashStr(key); },
+    seed: function () { return Daily.seedFor(Daily.todayKey()); },
+
+    /** 指定日期的每日修饰（洗牌后取前 N 个，测试可传固定 key） */
+    modsFor: function (key) {
+      const ids = Object.keys(DAILY_MODS);
+      const r = Daily.makeRng(Daily.seedFor(key) ^ 0x9e3779b9);
+      for (let i = ids.length - 1; i > 0; i--) {
+        const j = Math.floor(r() * (i + 1));
+        const t = ids[i]; ids[i] = ids[j]; ids[j] = t;
+      }
+      return ids.slice(0, Config.DAILY_MOD_COUNT);
+    },
+    mods: function () { return Daily.modsFor(Daily.todayKey()); },
+
+    /** 读全部每日榜数据 { date: [entries] }（脏数据/隐私模式兜底为 {}） */
+    _loadAll: function () {
+      try {
+        const raw = window.localStorage.getItem(Config.STORAGE_DAILY);
+        if (!raw) return {};
+        const p = JSON.parse(raw);
+        if (!p || typeof p !== 'object' || Array.isArray(p)) return {};
+        return p;
+      } catch (e) { return {}; }
+    },
+    _saveAll: function (obj) {
+      try { window.localStorage.setItem(Config.STORAGE_DAILY, JSON.stringify(obj)); return true; }
+      catch (e) { return false; }
+    },
+
+    /** 今日榜单（按分数降序、同分新在前） */
+    list: function () {
+      const data = Daily._loadAll();
+      return data[Daily.todayKey()] || [];
+    },
+
+    /**
+     * 记录一局每日挑战成绩，返回 { rank, total, isRecord, streak }。
+     * streak = { count, bonusPct }：连续打卡天数与对应的星屑加成比例。
+     */
+    record: function (run) {
+      const key = Daily.todayKey();
+      const data = Daily._loadAll();
+      let arr = data[key] || [];
+      const rec = {
+        name: String(run.name || 'Ply').slice(0, 10),
+        score: Number(run.score) || 0,
+        duration: Math.max(0, Math.floor(Number(run.duration) || 0)),
+        date: new Date().toISOString(),
+        mode: 'daily'
+      };
+      arr.push(rec);
+      arr.sort(function (a, b) {
+        if (b.score !== a.score) return b.score - a.score;
+        return new Date(b.date) - new Date(a.date);
+      });
+      if (arr.length > Config.DAILY_MAX) arr.length = Config.DAILY_MAX;
+      data[key] = arr;
+      Daily._saveAll(data);
+      const rank = arr.indexOf(rec) + 1;
+      const isRecord = (arr[0] === rec);
+      const streak = Daily._bumpStreak(key);
+      return { rank: rank, total: arr.length, isRecord: isRecord, streak: streak };
+    },
+
+    /** 更新连续打卡：今天已打卡不累加；昨天打卡则 +1；否则重置为 1 */
+    _bumpStreak: function (todayKey) {
+      let st = { lastDate: '', count: 0 };
+      try {
+        const p = JSON.parse(Storage.get(Config.STORAGE_DAILY_STREAK, ''));
+        if (p && typeof p === 'object') {
+          st.lastDate = p.lastDate || '';
+          st.count = Number(p.count) || 0;
+        }
+      } catch (e) { /* 脏数据兜底 */ }
+      if (st.lastDate === todayKey) {
+        // 今天已打卡，保持
+      } else if (st.lastDate === Daily.yesterdayKey()) {
+        st.count += 1;
+      } else {
+        st.count = 1;
+      }
+      st.lastDate = todayKey;
+      try { window.localStorage.setItem(Config.STORAGE_DAILY_STREAK, JSON.stringify(st)); }
+      catch (e) { /* 隐私模式静默降级 */ }
+      const bonusPct = Math.min(Config.DAILY_STREAK_BONUS_CAP, st.count * Config.DAILY_STREAK_BONUS_STEP);
+      return { count: st.count, bonusPct: bonusPct };
+    },
+
+    /** 当前连续打卡信息（供 UI 展示） */
+    streak: function () {
+      let st = { lastDate: '', count: 0 };
+      try {
+        const p = JSON.parse(Storage.get(Config.STORAGE_DAILY_STREAK, ''));
+        if (p && typeof p === 'object') {
+          st.lastDate = p.lastDate || '';
+          st.count = Number(p.count) || 0;
+        }
+      } catch (e) { /* 脏数据兜底 */ }
+      const bonusPct = Math.min(Config.DAILY_STREAK_BONUS_CAP, st.count * Config.DAILY_STREAK_BONUS_STEP);
+      return {
+        count: st.count,
+        bonusPct: bonusPct,
+        lastDate: st.lastDate,
+        today: Daily.todayKey(),
+        isToday: st.lastDate === Daily.todayKey()
+      };
+    }
+  };
+
+
   /**
    * G 轮：三种玩法模式。
    * - stage      闯关：6 关递进，过关三选一，Boss 与毒区（原有模式）
@@ -1740,7 +1955,7 @@
     right: { x: 1,  y: 0  }
   };
 
-  const STATE = { READY: 'ready', PLAYING: 'playing', PAUSED: 'paused', GAMEOVER: 'gameover', LEADERBOARD: 'leaderboard', SOCIAL: 'social', ACHIEVEMENTS: 'achievements', TALENTS: 'talents' };
+  const STATE = { READY: 'ready', PLAYING: 'playing', PAUSED: 'paused', GAMEOVER: 'gameover', LEADERBOARD: 'leaderboard', SOCIAL: 'social', ACHIEVEMENTS: 'achievements', TALENTS: 'talents', DAILY: 'daily' };
 
   /* ============================================================
    * 2. 存储（隐私模式下 localStorage 会抛错，全部 try-catch 兜底）
@@ -2345,6 +2560,16 @@
     stageBannerText: '',       // 关卡横幅文案（如「第 3 关」）
     stageBannerTime: 0,        // 关卡横幅剩余显示时间（秒）
 
+    /* ---- J 轮：每日挑战（同图 / 同修饰） ---- */
+    rng: Math.random,          // 棋盘生成用的随机源；普通局用 Math.random，每日挑战用按日期播种的 rng
+    daily: false,              // 是否每日挑战局
+    dailySeed: 0,              // 每日种子（日期哈希）
+    dailyMods: [],             // 今日生效的 modifier id 列表
+    dailyObsBonus: 0,          // 每日修饰：每关额外障碍数
+    dailyHazardMul: 1,        // 每日修饰：毒区数量倍率
+    dailyNoShield: false,      // 每日修饰：禁用护盾果
+    _dailyResult: null,        // 结算后写入：{ rank, total, isRecord, streak:{count,bonusPct} }
+
     /* ---- E 轮：生命值 / Combo / 升级卡 ---- */
     lives: 3,                  // 当前生命（撞毁扣 1 点，扣光才结束）
     maxLives: 3,               // 生命上限（「强心」可提升）
@@ -2386,6 +2611,12 @@
     reset: function () {
       const cx = Math.floor(Config.COLS / 2);
       const cy = Math.floor(Config.ROWS / 2);
+      // J 轮：每日挑战用按日期播种的 rng，保证同图；普通局用 Math.random（行为不变）
+      this.rng = this.daily ? Daily.makeRng(this.dailySeed) : Math.random;
+      // 每日修饰的累加字段每局清零（普通局恒为默认）
+      this.dailyObsBonus = 0;
+      this.dailyHazardMul = 1;
+      this.dailyNoShield = false;
       // I 轮：起步蛇身受「长蛇」天赋影响（等级 0 时为默认长度）
       const startLen = Config.START_LEN + Meta.startLenBonus();
       this.snake = [];
@@ -2447,6 +2678,14 @@
       this._killedSplitter = false;
       this._runDuration = 0;
 
+      // J 轮：每日修饰在基础初始化之后叠加（comboWindow/scoreMul/calmLevel 等已在上方就绪）
+      if (this.daily) {
+        for (let i = 0; i < this.dailyMods.length; i++) {
+          const m = DAILY_MODS[this.dailyMods[i]];
+          if (m && m.apply) m.apply(this);
+        }
+      }
+
       this.placeFood();
     },
 
@@ -2503,7 +2742,7 @@
       }
       if (free === 0) { this.food = { x: -1, y: -1 }; return false; }
 
-      let target = Math.floor(Math.random() * free);
+      let target = Math.floor(this.rng() * free);
       for (let i = 0; i < total; i++) {
         if (this.occupied[i]) continue;
         if (target === 0) {
@@ -2550,7 +2789,7 @@
         if (!this.occupied[i]) free++;
       }
       if (free === 0) return null;
-      let target = Math.floor(Math.random() * free);
+      let target = Math.floor(this.rng() * free);
       for (let i = 0; i < total; i++) {
         if (this.occupied[i]) continue;
         if (target === 0) return { x: i % Config.COLS, y: Math.floor(i / Config.COLS) };
@@ -2585,7 +2824,7 @@
       const types = ['gold', 'ice', 'bonus'];
       // E 轮：拿到「护盾果」升级后，护盾果进入刷新池
       if (this.shieldLevel > 0) types.push('shield');
-      const type = forceType || types[Math.floor(Math.random() * types.length)];
+      const type = forceType || types[Math.floor(this.rng() * types.length)];
       return this.placeSpecial(type) ? type : null;
     },
 
@@ -2849,7 +3088,8 @@
       this.stageTarget = Config.STAGE_BASE_TARGET + (this.stage - 1) * Config.STAGE_TARGET_STEP;
       this.level++;   // 过关升一级（速度随之变快，见 tps()）
       // 每升一关新增障碍（第 1 关无障碍，第 2 关起出现，关卡越后越难）
-      this.addObstacles(Config.OBSTACLE_STEP);
+      // J 轮：每日修饰「荆棘日」会让每关额外多刷障碍
+      this.addObstacles(Config.OBSTACLE_STEP + (this.dailyObsBonus || 0));
       // 清掉场上特殊食物，避免新布局把它卡在死角
       this.special = null;
       this.speedBuffAdd = 0;
@@ -2861,7 +3101,8 @@
       this.hazards = [];
       if (this.isBossStage(this.stage)) {
         this.spawnBoss();
-        this.spawnHazards(Config.HAZARD_COUNT);
+        // J 轮：每日修饰「毒雾日」会让 Boss 关毒区数量翻倍
+        this.spawnHazards(Config.HAZARD_COUNT * (this.dailyHazardMul || 1));
       }
       // 关卡横幅
       this.stageBannerText = '第 ' + this.stage + ' 关';
@@ -3354,6 +3595,16 @@
 
       // I 轮：本局结算星屑（跨局货币），累加进 Meta 持久化
       this._lastEarned = Meta.earnedFor(this);
+      // J 轮：每日挑战 —— 记入今日榜并更新连续打卡，连续打卡给星屑加成
+      if (this.daily) {
+        this._dailyResult = Daily.record({
+          name: 'Ply',
+          score: this.score,
+          duration: this._runDuration,
+          mode: 'daily'
+        });
+        this._lastEarned = Math.round(this._lastEarned * (1 + this._dailyResult.streak.bonusPct));
+      }
       Meta.addStardust(this._lastEarned);
     },
 
@@ -4490,6 +4741,8 @@
         if (Game.state === STATE.READY) return;
         // 结束态：只响应「再来一局」按钮，点遮罩其它位置不重启（避免误触，见 bug 修复）
         if (Game.state === STATE.GAMEOVER) return;
+        // J 轮：每日榜是独立面板，点遮罩不误触发其它动作
+        if (Game.state === STATE.DAILY) return;
         // E 轮：选卡期间点空白处不响应，避免把选卡面板顶掉
         if (Game.awaitingUpgrade) return;
         App.primaryAction();
@@ -4676,8 +4929,10 @@
             '<button class="btn ghost" id="ovAch" type="button">★ 成就</button>' +
             '<button class="btn ghost" id="ovFriends" type="button">👥 好友榜</button>' +
             '<button class="btn ghost" id="ovTalent" type="button">🌟 天赋</button>' +
+            '<button class="btn ghost" id="ovDaily" type="button">📅 每日挑战</button>' +
+            '<button class="btn ghost" id="ovDailyLb" type="button">📅 每日榜</button>' +
           '</div>' +
-          '<p class="hint">按 空格 / Enter 开始 · 点「排行榜 / 成就 / 好友榜 / 天赋」查看</p>'
+          '<p class="hint">按 空格 / Enter 开始 · 点「排行榜 / 成就 / 好友榜 / 天赋 / 每日」查看</p>'
 
       } else if (s === STATE.PAUSED) {
         // 暂停屏不加排行榜，保持轻量
@@ -4744,6 +4999,10 @@
           '<p class="desc">' + reason + '</p>' +
           lbHtml +
           '<p class="stardust-earn">本局获得 ✨<b>' + (Game._lastEarned || 0) + '</b> 星屑（累计 ✨' + Meta.stardust() + '）</p>' +
+          (Game.daily && Game._dailyResult
+            ? '<p class="daily-earn">📅 今日榜 第 <b>' + Game._dailyResult.rank + '</b> / ' + Game._dailyResult.total +
+              ' 名　连续打卡 <b>' + Game._dailyResult.streak.count + '</b> 天（星屑 +' + Math.round(Game._dailyResult.streak.bonusPct * 100) + '%）</p>'
+            : '') +
           (shareCode
             ? '<div class="go-actions">' +
                 '<button class="btn" id="ovBtn" type="button">再来一局</button>' +
@@ -4756,6 +5015,17 @@
               '</div>'
             : '<button class="btn" id="ovBtn" type="button">再来一局</button>') +
           '<p class="hint">按 R / 空格 重新开始，或点「再来一局」</p>';
+
+      } else if (s === STATE.DAILY) {
+        const st = Daily.streak();
+        html =
+          '<div class="tag">DAILY</div>' +
+          '<h2>📅 每日榜</h2>' +
+          '<p class="desc">今日挑战 <b>' + Daily.todayKey() + '</b>　连续打卡 <b>' + st.count + '</b> 天（星屑 +' + Math.round(st.bonusPct * 100) + '%）</p>' +
+          this.renderDailyMods() +
+          this.renderDailyBlock() +
+          '<button class="btn ghost" id="ovBack" type="button">返回</button>' +
+          '<p class="hint">按 Esc / 点「返回」回到开始</p>';
 
       } else if (s === STATE.LEADERBOARD) {
         html =
@@ -4903,6 +5173,22 @@
           if (e && e.stopPropagation) e.stopPropagation();
           Game.state = STATE.TALENTS;
           UI.syncOverlay();
+        });
+      }
+      // 开始屏：每日挑战 -> 开始一局当日同图挑战
+      const dailyBtn = document.getElementById('ovDaily');
+      if (dailyBtn) {
+        dailyBtn.addEventListener('click', function (e) {
+          if (e && e.stopPropagation) e.stopPropagation();
+          App.startDaily();
+        });
+      }
+      // 开始屏：每日榜 -> 进入独立每日榜面板
+      const dailyLbBtn = document.getElementById('ovDailyLb');
+      if (dailyLbBtn) {
+        dailyLbBtn.addEventListener('click', function (e) {
+          if (e && e.stopPropagation) e.stopPropagation();
+          App.showDaily();
         });
       }
       // 天赋面板：逐张升级按钮 -> 扣星屑并刷新面板
@@ -5160,6 +5446,42 @@
     },
 
     /** I 轮：天赋面板列表（开始屏点「🌟 天赋」进入，消耗 ✨星屑解锁永久强化） */
+    /** J 轮：每日修饰 chips（开始屏 / 每日榜顶部展示今日挑战内容） */
+    renderDailyMods: function () {
+      const mods = Daily.mods();
+      let chips = '';
+      for (let i = 0; i < mods.length; i++) {
+        const m = DAILY_MODS[mods[i]];
+        if (!m) continue;
+        chips += '<span class="daily-mod">' + m.icon + ' ' + m.name + '：' + m.desc + '</span>';
+      }
+      return '<div class="daily-mods">' + chips + '</div>';
+    },
+
+    /** J 轮：今日榜列表（按日期分桶的成绩，与总榜隔离） */
+    renderDailyBlock: function () {
+      const list = Daily.list();
+      let rows = '';
+      if (list.length === 0) {
+        rows = '<li class="lb-empty">今天还没有人挑战，快来抢首杀！</li>';
+      } else {
+        for (let i = 0; i < list.length; i++) {
+          const it = list[i];
+          const topCls = i < 3 ? ' is-top' + (i + 1) : '';
+          rows +=
+            '<li class="' + topCls + '">' +
+              '<span class="lb-ranknum">' + (i + 1) + '</span>' +
+              '<span class="lb-name">' + escapeHtml(it.name) + '</span>' +
+              '<span class="lb-score">' + it.score + '</span>' +
+            '</li>';
+        }
+      }
+      return '<div class="leaderboard">' +
+        '<div class="lb-header"><span>今日榜 TOP ' + Config.DAILY_MAX + '</span></div>' +
+        '<ul class="lb-list leaderboard-list">' + rows + '</ul>' +
+        '</div>';
+    },
+
     renderTalentsBlock: function () {
       const defs = Meta.defs();
       let rows = '';
@@ -5425,11 +5747,16 @@
         else if (Game.state === STATE.SOCIAL) App.showStart();
         else if (Game.state === STATE.ACHIEVEMENTS) App.showStart();
         else if (Game.state === STATE.TALENTS) App.showStart();
+        else if (Game.state === STATE.DAILY) App.showStart();
         return;
       }
 
+      // J 轮：独立面板态（含每日榜）下 R 键不误重开上一局
       if (k === 'r' || k === 'R') {
-        App.restart();
+        if (Game.state === STATE.PLAYING || Game.state === STATE.PAUSED ||
+            Game.state === STATE.GAMEOVER || Game.state === STATE.READY) {
+          App.restart();
+        }
         return;
       }
 
@@ -5558,6 +5885,7 @@
       else if (Game.state === STATE.SOCIAL) return;        // 独立面板态：不误开始
       else if (Game.state === STATE.ACHIEVEMENTS) return;  // 独立面板态：不误开始
       else if (Game.state === STATE.TALENTS) return;       // 独立面板态：不误开始
+      else if (Game.state === STATE.DAILY) return;         // 独立面板态：不误开始
     },
 
     /** 进入独立排行榜面板（暂停游戏逻辑，与 READY 同级） */
@@ -5596,10 +5924,38 @@
       UI.syncOverlay();
     },
 
+    /** J 轮：进入每日榜独立面板 */
+    showDaily: function () {
+      Game.state = STATE.DAILY;
+      UI.syncOverlay();
+    },
+
+    /**
+     * J 轮：开始一局每日挑战。
+     * 固定用闯关模式 + 当日种子（同图）+ 当日修饰，保证当天所有人公平同图。
+     */
+    startDaily: function () {
+      Game.daily = true;
+      Game.mode = 'stage';
+      Game.stageMode = true;
+      Game.dailySeed = Daily.seed();
+      Game.dailyMods = Daily.mods();
+      Game.reset();
+      Game.state = STATE.PLAYING;
+      this.gameStart = Date.now();
+      this.accumulator = 0;
+      this.alpha = 0;
+      Fx.clear();
+      Sfx.start();
+      UI.updateHud();
+      UI.syncOverlay();
+    },
+
     start: function () {
       if (Game.state === STATE.READY || Game.state === STATE.GAMEOVER) {
         // G 轮：是否走闯关逻辑（关卡/Boss/毒区）由所选模式决定
         Game.stageMode = (Game.mode === 'stage');
+        Game.daily = false;   // J 轮：普通「开始游戏」永远不是每日挑战（每日走 startDaily）
         Game.reset();
       }
       Game.state = STATE.PLAYING;

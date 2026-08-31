@@ -50,7 +50,7 @@ function patchForExport(src) {
     ' Leaderboard: Leaderboard, Achievements: Achievements, Skins: Skins, Stats: Stats,' +
     ' Share: Share, FriendsBoard: FriendsBoard,' +
     ' MODES: MODES, ACHIEVEMENTS: ACHIEVEMENTS, SNAKE_SKINS: SNAKE_SKINS,' +
-    ' Meta: Meta, TALENTS: TALENTS };' +
+    ' Meta: Meta, TALENTS: TALENTS, Daily: Daily, DAILY_MODS: DAILY_MODS };' +
     '\n})();'
   );
 }
@@ -408,6 +408,8 @@ function createHarness(opts) {
     MODES: X.MODES, ACHIEVEMENTS: X.ACHIEVEMENTS, SNAKE_SKINS: X.SNAKE_SKINS,
     // I 轮新增
     Meta: X.Meta, TALENTS: X.TALENTS,
+    // J 轮新增
+    Daily: X.Daily, DAILY_MODS: X.DAILY_MODS,
 
     // 环境
     window, document, els: registry, consoleLog,

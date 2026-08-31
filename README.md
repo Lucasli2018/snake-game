@@ -44,8 +44,9 @@
 - **排行榜**（`localStorage` 持久化，最多 10 条）：点开始屏「🏆 排行榜」按钮进入**独立面板**展示 Top 10，前三名金银铜奖牌 + 当前玩家行高亮；结束屏显示「第 N / M 名」名次徽章（前三名金银铜配色 + 脉动新纪录）并可改名（默认名 `Ply`，≤10 字符），清榜带 5 秒二次确认倒计时，隐私模式下静默降级
 - **社交分享（H 轮 · 零后端）**：结算屏（GAMEOVER / 通关 / 时间到）生成本局 `SNK1-` 分享码，一键「复制分享码」与「保存成绩卡」；开始屏点「👥 好友榜」进入独立面板，粘贴好友分享码即可导入并在本地比分数（与排行榜严格分离），脏数据/重复码/非法码全部容错
 - **元进度天赋树（I 轮 · 跨局永久成长）**：每局结算获得 ✨星屑（得分/20 + 最高连击×2 + 击破Boss×5 + 通关+30 + 新纪录+15），开始屏点「🌟 天赋」进入独立面板，用星屑解锁 6 种永久天赋（强身 / 贪婪之魂 / 连击感知 / 幸运星 / 稳健 / 长蛇），跨局永久生效、与单局升级卡叠加；星屑与天赋等级存 `localStorage`（键 `snake-meta.v1`），隐私模式下静默降级
+- **每日挑战 + 每日榜（J 轮 · 同图公平 + 回流激励）**：开始屏点「📅 每日挑战」进入当日限定挑战——**按日期播种的确定性棋盘**（同一种子 + 同一种子洗牌出的 2 个每日修饰），当天所有玩家同图、公平比拼；点「📅 每日榜」进入独立面板查看今日榜 Top 10（与全局排行榜严格隔离，键 `snake-daily.v1`）。每日修饰共 8 种（`comboBoost` 连击窗口+40% / `greed` 得分×1.5 / `thorns` 每关+3 障碍 / `longSnake` 起步+3 节 / `swift` 基础速度+0.8 / `calm` 基础速度−0.8 / `toxic` 毒区×2 / `noShield` 禁用护盾果），种子由日期 FNV-1a 哈希经 mulberry32 生成；**连续打卡**累计天数（键 `snake-daily-streak.v1`，昨天打卡 +1、其余重置为 1），每连续 1 天给本局星屑 +10% 加成（封顶 +50%），给回流玩家稳定激励
 - **玩法指引弹窗**：进入首页自动弹出（每个 session 仅一次），点击关闭或按 Esc/空格/Enter 关闭；开始屏标题下常驻「❓ 玩法指引」按钮，可随时重新打开。玩法说明从首页移入弹窗，保证首页一屏完整、不再滚动
-- 六态状态机：ready / playing / paused / gameover / leaderboard / social
+- 状态机：ready / playing / paused / gameover / leaderboard / social / achievements / talents / daily（后四种为独立面板态，遮罩点击 / primaryAction / 键盘 R 不会误开始游戏）
 - 页面切到后台或窗口失焦 → 自动暂停
 - 窗口尺寸变化 → 画布自适应重绘（按 devicePixelRatio 渲染，高分屏不糊）
 - 响应式布局，桌面 / 手机都能满屏玩
@@ -288,6 +289,39 @@ earned = floor(score / 20) + comboBest×2 + runBossKills×5 + (通关 ? 30 : 0) 
 
 > 红线：`Meta.data()` 每次都从 `Storage` 重新读取（不缓存上一次结果），避免跨测试 / 跨局读到脏缓存；`reset()` 里 `Meta` 的方法必须直接调用模块（`Meta.startLivesBonus()`），不能把 `Meta.load()` 的返回值当模块用——它返回的是数据对象，没有效果方法。
 
+### J 轮：每日挑战 + 每日榜（同图公平 + 回流激励）
+
+把「每日一图」做成确定性挑战，让当天所有人公平同台，并用连续打卡给回流玩家稳定激励。
+
+**确定性棋盘（同图核心）**：
+
+```
+每日种子 = FNV-1a(YYYY-MM-DD)                       // 日期字符串哈希成 uint32
+棋盘 rng = mulberry32(每日种子)                       // 同日期 -> 同序列 -> 同初始食物/障碍
+每日修饰 = shuffle(Object.keys(DAILY_MODS), 每日种子 ^ 0x9e3779b9).slice(0, 2)
+```
+
+`Game.reset()` 里 `this.rng = this.daily ? Daily.makeRng(this.dailySeed) : Math.random;`——所有「生成类」随机（食物位置、特殊食物类型、障碍/毒区铺设）一律走 `this.rng()`，只有纯表现层（粒子、震屏、Boss 装饰）仍用 `Math.random`，不影响公平判定。每日修饰在基础初始化之后逐个 `apply(g)` 叠加（每局先清零 `dailyObsBonus / dailyHazardMul / dailyNoShield`）。
+
+**每日修饰（8 种，`DAILY_MODS`）**：
+
+| 修饰 | 效果 |
+| --- | --- |
+| comboBoost | 连击窗口 +40%（`comboWindow × 1.4`） |
+| greed | 全局得分 ×1.5（`scoreMul = 1.5`） |
+| thorns | 每关障碍 +3（`dailyObsBonus = 3`） |
+| longSnake | 起步蛇身 +3 节（`startLenBonus + 3`） |
+| swift | 基础速度 +0.8（`calmLevel − 1`） |
+| calm | 基础速度 −0.8（`calmLevel + 1`） |
+| toxic | 毒区数量 ×2（`dailyHazardMul = 2`） |
+| noShield | 禁用护盾果（`dailyNoShield = true`，并清空已有护盾等级；升级卡「护盾」`available` 也据此隐藏） |
+
+**每日榜（隔离于全局榜）**：键 `snake-daily.v1`，结构 `{ 'YYYY-MM-DD': [entries] }`；`record()` 写入后按分数降序（同分新在前）排序并截断 `DAILY_MAX`（10）条，返回 `{ rank, total, isRecord, streak }`；`showDaily()` 进入 `STATE.DAILY` 独立面板渲染今日榜 + 当前连续打卡信息。
+
+**连续打卡（回流激励）**：键 `snake-daily-streak.v1`，结构 `{ lastDate, count }`。`_bumpStreak(todayKey)` 规则：今天已打卡 → 保持；昨天打卡 → `count + 1`；其余 → 重置为 1。本局结算星屑 = `floor(earned × (1 + min(count × 0.1, 0.5)))`，即每连续 1 天 +10%、封顶 +50%。
+
+> 红线：每日挑战固定走 `App.startDaily()`（闯关模式 + 当日种子 + 当日修饰）；普通「开始游戏」`App.start()` 永远 `Game.daily = false`，不会误进每日挑战。每日榜/连续打卡与全局榜/星屑池严格隔离，互不污染键名。
+
 ### 排行榜
 
 键 `snake-leaderboard`，`JSON` 数组、最多 `LEADERBOARD_MAX`（10）条，每条：
@@ -404,7 +438,10 @@ snake-game/
     ├── 20-achievements-ui.test.js  # 成就系统入口与展示页跳转测试（6 条）
     ├── 21-guide.test.js  # 玩法指引弹窗测试（8 条）
     └── 22-talents.test.js  # 元进度天赋树测试（10 条：Meta/升级/效果/UI/结算）
+    └── 23-daily.test.js    # J 轮每日挑战测试（8 条：种子/修饰确定性/同图/修饰叠加/每日榜/连续打卡/UI/startDaily）
 ```
+
+> 全套 `cd tests && node --test` 共 **334** 条，全绿（含 8 条 J 轮每日挑战测试）。
 
 ### 跑测试
 
